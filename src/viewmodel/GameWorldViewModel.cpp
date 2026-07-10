@@ -155,8 +155,14 @@ int GameWorldViewModel::playerHeartCount() const {
     return p ? p->hp / 10 : 0;
 }
 
+qreal GameWorldViewModel::chargeProgress() const {
+    return chargeProgress_;
+}
+
 void GameWorldViewModel::reset() {
     damageCount_ = 0;
+    chargePressed_ = false;
+    chargeProgress_ = 0.0;
     resolvedAttackTokens_.clear();
     initializeWorld();
     emit damageCountChanged();
@@ -178,6 +184,12 @@ void GameWorldViewModel::setViewport(qreal width, qreal height) {
 void GameWorldViewModel::tick(int deltaMs) {
     const int dt = deltaMs <= 0 ? kFrameMs : deltaMs;
     pendingSceneSwitch_ = false;
+
+    // 蓄力进度更新
+    if (chargePressed_) {
+        chargeProgress_ = qMin(1.0, chargeProgress_ + dt / chargeThresholdMs_);
+        emit chargeProgressChanged();
+    }
 
     for (auto it = characters_.begin(); it != characters_.end(); ++it) {
         auto& character = it.value();
@@ -267,6 +279,9 @@ void GameWorldViewModel::playerAttack(const QString& direction) {
         return;
     }
 
+    const bool isRollAttack = (p->state == QStringLiteral("roll"));
+    p->rollAttack = isRollAttack;
+
     QString resolved = direction;
     if (resolved.isEmpty()) {
         resolved = p->facingLeft ? QStringLiteral("left") : QStringLiteral("right");
@@ -274,10 +289,14 @@ void GameWorldViewModel::playerAttack(const QString& direction) {
     p->attackDirection = resolved;
     p->attackSerial += 1;
     p->attackBox.active = true;
-    setCharacterState(*p, QStringLiteral("attack"), 5, 55, 275);
+    if (isRollAttack) {
+        setCharacterState(*p, QStringLiteral("skill"), 8, 65, 520);
+    } else {
+        setCharacterState(*p, QStringLiteral("attack"), 5, 55, 275);
+    }
     updateCollisionBoxes(*p);
     checkPlayerAttackHits();
-    emit soundRequested(QStringLiteral("player.attack.1"));
+    emit soundRequested(isRollAttack ? QStringLiteral("player.attack.2") : QStringLiteral("player.attack.1"));
     emit worldChanged();
 }
 
@@ -315,6 +334,40 @@ void GameWorldViewModel::playerCastSkill(const QString& skillId) {
     setCharacterState(*p, QStringLiteral("skill"), 8, 65, 520);
     emit soundRequested(QStringLiteral("player.attack.2"));
     Q_UNUSED(skillId);
+    emit worldChanged();
+}
+
+void GameWorldViewModel::setChargePressed(bool pressed) {
+    chargePressed_ = pressed;
+    if (pressed) {
+        auto* p = player();
+        if (p) {
+            p->moveDirection = 0;
+            p->velocity.setX(0);
+        }
+    } else {
+        chargeProgress_ = 0.0;
+        emit chargeProgressChanged();
+    }
+}
+
+void GameWorldViewModel::playerBurstAttack() {
+    auto* p = player();
+    if (!p || !p->alive) {
+        return;
+    }
+
+    // 爆气攻击：角色全身周围大范围伤害
+    p->attackDirection = QStringLiteral("burst");
+    p->moveDirection = 0;
+    p->velocity.setX(0);
+    p->attackSerial += 1;
+    p->rollAttack = false;
+    p->attackBox.active = true;
+    setCharacterState(*p, QStringLiteral("skill"), 8, 65, 400);
+    updateCollisionBoxes(*p);
+    checkPlayerAttackHits();
+    emit soundRequested(QStringLiteral("player.attack.2"));
     emit worldChanged();
 }
 
@@ -460,6 +513,7 @@ void GameWorldViewModel::updateCharacterAnimation(CharacterObject& character, in
             character.actionDurationMs = 0;
             character.actionElapsedMs = 0;
             character.attackBox.active = false;
+            character.rollAttack = false;
             const bool airborne = character.velocity.y() != 0;
             if (airborne) {
                 setCharacterState(character, character.velocity.y() < 0 ? QStringLiteral("jump") : QStringLiteral("fall"), 8, 70);
@@ -478,7 +532,11 @@ void GameWorldViewModel::updatePhysics(CharacterObject& character, int deltaMs) 
     }
 
     const qreal stepScale = deltaMs / static_cast<qreal>(kFrameMs);
-    if (character.state == QStringLiteral("roll")) {
+    if (character.attackDirection == QStringLiteral("burst")) {
+        // 爆气时不能移动
+    } else if (chargePressed_) {
+        // 蓄力时不能移动
+    } else if (character.state == QStringLiteral("roll")) {
         character.position.rx() += character.velocity.x() * stepScale;
     } else {
         character.velocity.setX(character.moveDirection * moveSpeed_);
@@ -529,19 +587,51 @@ void GameWorldViewModel::updateCollisionBoxes(CharacterObject& character) {
     qreal offsetX = attackOffsetLeftX_;
     qreal offsetY = attackOffsetLeftY_;
 
-    if (character.attackDirection == QStringLiteral("right")) {
-        offsetX = attackOffsetRightX_;
-        offsetY = attackOffsetRightY_;
-    } else if (character.attackDirection == QStringLiteral("up")) {
-        boxWidth = attackBoxHeight_;
-        boxHeight = attackBoxWidth_;
-        offsetX = attackOffsetUpX_;
-        offsetY = attackOffsetUpY_;
-    } else if (character.attackDirection == QStringLiteral("down")) {
-        boxWidth = attackBoxHeight_;
-        boxHeight = attackBoxWidth_;
-        offsetX = attackOffsetDownX_;
-        offsetY = attackOffsetDownY_;
+    // 爆气攻击：角色全身周围范围
+    if (character.attackDirection == QStringLiteral("burst")) {
+        offsetX = (actorWidth_ - burstBoxWidth_) / 2;
+        offsetY = (actorHeight_ - burstBoxHeight_) / 2;
+        boxWidth = burstBoxWidth_;
+        boxHeight = burstBoxHeight_;
+    } else if (character.rollAttack) {
+        // 冲刺攻击：更长更细的碰撞箱
+        if (character.attackDirection == QStringLiteral("right")) {
+            offsetX = attackOffsetRightX_;
+            offsetY = attackOffsetRightY_ + (attackBoxHeight_ - rollAttackBoxHeight_) / 2;
+            boxWidth = rollAttackBoxWidth_;
+            boxHeight = rollAttackBoxHeight_;
+        } else if (character.attackDirection == QStringLiteral("up")) {
+            boxWidth = rollAttackBoxHeight_;
+            boxHeight = rollAttackBoxWidth_;
+            offsetX = attackOffsetUpX_ + (attackBoxHeight_ - rollAttackBoxHeight_) / 2;
+            offsetY = attackOffsetUpY_ - (rollAttackBoxWidth_ - attackBoxWidth_);
+        } else if (character.attackDirection == QStringLiteral("down")) {
+            boxWidth = rollAttackBoxHeight_;
+            boxHeight = rollAttackBoxWidth_;
+            offsetX = attackOffsetDownX_ + (attackBoxHeight_ - rollAttackBoxHeight_) / 2;
+            offsetY = attackOffsetDownY_;
+        } else {
+            // left (default)
+            offsetX = attackOffsetLeftX_ - (rollAttackBoxWidth_ - attackBoxWidth_);
+            offsetY = attackOffsetLeftY_ + (attackBoxHeight_ - rollAttackBoxHeight_) / 2;
+            boxWidth = rollAttackBoxWidth_;
+            boxHeight = rollAttackBoxHeight_;
+        }
+    } else {
+        if (character.attackDirection == QStringLiteral("right")) {
+            offsetX = attackOffsetRightX_;
+            offsetY = attackOffsetRightY_;
+        } else if (character.attackDirection == QStringLiteral("up")) {
+            boxWidth = attackBoxHeight_;
+            boxHeight = attackBoxWidth_;
+            offsetX = attackOffsetUpX_;
+            offsetY = attackOffsetUpY_;
+        } else if (character.attackDirection == QStringLiteral("down")) {
+            boxWidth = attackBoxHeight_;
+            boxHeight = attackBoxWidth_;
+            offsetX = attackOffsetDownX_;
+            offsetY = attackOffsetDownY_;
+        }
     }
 
     character.attackBox = CollisionBox{QRectF(character.position.x() + offsetX, character.position.y() + offsetY, boxWidth, boxHeight), true};
@@ -631,7 +721,7 @@ void GameWorldViewModel::checkPlayerAttackHits() {
         }
         resolvedAttackTokens_.insert(token);
         ++damageCount_;
-        setCharacterState(target, QStringLiteral("hit"), 1, 90, 180);
+        setCharacterState(target, QStringLiteral("hit"), 4, 90, 360);
         emit damageCountChanged();
         emit soundRequested(QStringLiteral("enemy.hurt.1"));
         break;

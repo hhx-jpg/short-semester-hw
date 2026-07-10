@@ -28,6 +28,7 @@ class GameWorldViewModel : public QObject {
     Q_PROPERTY(int playerHp READ playerHp NOTIFY worldChanged)
     Q_PROPERTY(int playerMaxHp READ playerMaxHp NOTIFY worldChanged)
     Q_PROPERTY(int playerHeartCount READ playerHeartCount NOTIFY worldChanged)
+    Q_PROPERTY(qreal chargeProgress READ chargeProgress NOTIFY chargeProgressChanged)
 
 public:
     explicit GameWorldViewModel(QObject* parent = nullptr);
@@ -46,6 +47,7 @@ public:
     int playerHp() const;
     int playerMaxHp() const;
     int playerHeartCount() const;
+    qreal chargeProgress() const;
 
     Q_INVOKABLE void reset();
     Q_INVOKABLE void setViewport(qreal width, qreal height);
@@ -57,12 +59,15 @@ public:
     Q_INVOKABLE void playerAttack(const QString& direction);
     Q_INVOKABLE void playerTakeHit(int damage);
     Q_INVOKABLE void playerCastSkill(const QString& skillId);
+    Q_INVOKABLE void setChargePressed(bool pressed);
+    Q_INVOKABLE void playerBurstAttack();
 
 signals:
     void worldChanged();
     void viewportChanged();
     void damageCountChanged();
     void soundRequested(const QString& key);
+    void chargeProgressChanged();
 
 private:
     enum class SceneId {
@@ -101,6 +106,7 @@ private:
         QString attackDirection = QStringLiteral("left");
         int attackSerial = 0;
         int moveDirection = 0;
+        bool rollAttack = false;
         CollisionBox hurtbox;
         CollisionBox attackBox;
     };
@@ -174,6 +180,13 @@ private:
     qreal attackOffsetUpY_ = -96;
     qreal attackOffsetDownX_ = 15;
     qreal attackOffsetDownY_ = 54;
+    qreal rollAttackBoxWidth_ = 240;
+    qreal rollAttackBoxHeight_ = 36;
+    qreal burstBoxWidth_ = 200;
+    qreal burstBoxHeight_ = 200;
+    qreal chargeThresholdMs_ = 350.0;
+    mutable qreal chargeProgress_ = 0.0;
+    bool chargePressed_ = false;
 
     QHash<QString, CharacterObject> characters_;
     QList<TerrainPiece> terrain_;
