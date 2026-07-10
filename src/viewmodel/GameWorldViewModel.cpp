@@ -23,7 +23,7 @@ QString animationForState(const QString& state) {
         return QStringLiteral("enemy.attack");
     }
     if (state == QStringLiteral("hit")) {
-        return QStringLiteral("enemy.hit");
+        return QStringLiteral("player.hit");
     }
     if (state == QStringLiteral("skill")) {
         return QStringLiteral("enemy.skill");
@@ -82,6 +82,17 @@ QVariantList GameWorldViewModel::terrain() const {
 
 QVariantList GameWorldViewModel::debugBoxes() const {
     QVariantList result;
+
+    // Terrain collision boxes (green)
+    for (const auto& piece : terrain_) {
+        QVariantMap box = rectToVariant(piece.rect);
+        box["boxType"] = QStringLiteral("terrain");
+        box["kind"] = piece.kind;
+        box["active"] = true;
+        result.push_back(box);
+    }
+
+    // Character hurt/attack boxes (white)
     for (auto it = characters_.constBegin(); it != characters_.constEnd(); ++it) {
         const auto& character = it.value();
         QVariantMap hurtbox = rectToVariant(character.hurtbox.rect);
@@ -129,6 +140,21 @@ qreal GameWorldViewModel::mapY() const {
     return mapY_;
 }
 
+int GameWorldViewModel::playerHp() const {
+    auto* p = const_cast<GameWorldViewModel*>(this)->player();
+    return p ? p->hp : 0;
+}
+
+int GameWorldViewModel::playerMaxHp() const {
+    auto* p = const_cast<GameWorldViewModel*>(this)->player();
+    return p ? p->maxHp : 0;
+}
+
+int GameWorldViewModel::playerHeartCount() const {
+    auto* p = const_cast<GameWorldViewModel*>(this)->player();
+    return p ? p->hp / 10 : 0;
+}
+
 void GameWorldViewModel::reset() {
     damageCount_ = 0;
     resolvedAttackTokens_.clear();
@@ -151,6 +177,7 @@ void GameWorldViewModel::setViewport(qreal width, qreal height) {
 
 void GameWorldViewModel::tick(int deltaMs) {
     const int dt = deltaMs <= 0 ? kFrameMs : deltaMs;
+    pendingSceneSwitch_ = false;
 
     for (auto it = characters_.begin(); it != characters_.end(); ++it) {
         auto& character = it.value();
@@ -160,6 +187,11 @@ void GameWorldViewModel::tick(int deltaMs) {
         updateCharacterAnimation(character, dt);
         updatePhysics(character, dt);
         updateCollisionBoxes(character);
+    }
+
+    if (pendingSceneSwitch_) {
+        switchToScene(pendingScene_, pendingEntrySide_);
+        pendingSceneSwitch_ = false;
     }
 
     checkPlayerAttackHits();
@@ -261,7 +293,11 @@ void GameWorldViewModel::playerTakeHit(int damage) {
         setCharacterState(*p, QStringLiteral("dead"), 1, 90);
         emit soundRequested(QStringLiteral("player.dead"));
     } else {
-        setCharacterState(*p, QStringLiteral("hit"), 1, 90, 180);
+        if (p->state == QStringLiteral("hit")) {
+            p->state = QString();
+            p->actionDurationMs = 0;
+        }
+        setCharacterState(*p, QStringLiteral("hit"), 4, 90, 360);
         emit soundRequested(QStringLiteral("player.hurt"));
     }
     emit worldChanged();
@@ -346,12 +382,18 @@ void GameWorldViewModel::buildBackground2Scene() {
     playableLeft_ = std::max<qreal>(0, mapX_);
     playableRight_ = std::min<qreal>(viewportWidth_, mapX_ + mapWidth_);
 
-    terrain_.push_back(TerrainPiece{QStringLiteral("bg2_level0_left"), QStringLiteral("platform"), imageRectToWorld(0, 121, 826, 145, 2360, 725), true});
-    terrain_.push_back(TerrainPiece{QStringLiteral("bg2_level0_right"), QStringLiteral("platform"), imageRectToWorld(1888, 121, 2360, 145, 2360, 725), true});
-    terrain_.push_back(TerrainPiece{QStringLiteral("bg2_level1_center"), QStringLiteral("platform"), imageRectToWorld(1062, 242, 1652, 266, 2360, 725), true});
-    terrain_.push_back(TerrainPiece{QStringLiteral("bg2_level2_right"), QStringLiteral("platform"), imageRectToWorld(2124, 363, 2360, 387, 2360, 725), true});
-    terrain_.push_back(TerrainPiece{QStringLiteral("bg2_stairs_0_to_1"), QStringLiteral("stairs"), imageRectToWorld(826, 145, 1062, 242, 2360, 725), true});
-    terrain_.push_back(TerrainPiece{QStringLiteral("bg2_stairs_1_to_2"), QStringLiteral("stairs"), imageRectToWorld(1888, 242, 2124, 363, 2360, 725), true});
+    // Terrain collision boxes
+    terrain_.push_back(TerrainPiece{QStringLiteral("bg2_ground"), QStringLiteral("platform"), QRectF(0, 673, 698, 91), true});
+    terrain_.push_back(TerrainPiece{QStringLiteral("bg2_step1"), QStringLiteral("platform"), QRectF(423, 628, 89, 46), true});
+    terrain_.push_back(TerrainPiece{QStringLiteral("bg2_step2"), QStringLiteral("platform"), QRectF(469, 583, 88, 42), true});
+    terrain_.push_back(TerrainPiece{QStringLiteral("bg2_step3"), QStringLiteral("platform"), QRectF(560, 539, 89, 41), true});
+    terrain_.push_back(TerrainPiece{QStringLiteral("bg2_top_platform"), QStringLiteral("platform"), QRectF(605, 492, 594, 41), true});
+}
+
+void GameWorldViewModel::requestSceneSwitch(SceneId scene, EntrySide entrySide) {
+    pendingSceneSwitch_ = true;
+    pendingScene_ = scene;
+    pendingEntrySide_ = entrySide;
 }
 
 void GameWorldViewModel::switchToScene(SceneId scene, EntrySide entrySide) {
@@ -447,8 +489,9 @@ void GameWorldViewModel::updatePhysics(CharacterObject& character, int deltaMs) 
     character.position.ry() += character.velocity.y() * stepScale;
 
     if (currentScene_ == SceneId::OriginalFactory && character.position.x() > playableRight_ - actorWidth_) {
-        switchToScene(SceneId::Background2Factory, EntrySide::Left);
-        return;
+        requestSceneSwitch(SceneId::Background2Factory, EntrySide::Left);
+    } else if (currentScene_ == SceneId::Background2Factory && character.position.x() < playableLeft_) {
+        requestSceneSwitch(SceneId::OriginalFactory, EntrySide::Right);
     }
     character.position.rx() = std::max<qreal>(playableLeft_, std::min(playableRight_ - actorWidth_, character.position.x()));
 
@@ -524,11 +567,32 @@ void GameWorldViewModel::resolveTerrainCollision(CharacterObject& character) {
             continue;
         }
 
-        const qreal previousBottom = body.bottom() - character.velocity.y();
-        if (previousBottom <= piece.rect.top() && body.bottom() >= piece.rect.top() && body.right() > piece.rect.left() && body.left() < piece.rect.right()) {
-            character.position.setY(piece.rect.top() - actorHeight_);
+        // Compute current hurtbox from character position (updateCollisionBoxes hasn't run yet this frame)
+        const qreal hOffX = character.kind == QStringLiteral("enemy") ? enemyHurtboxOffsetX_ : playerHurtboxOffsetX_;
+        const qreal hOffY = character.kind == QStringLiteral("enemy") ? enemyHurtboxOffsetY_ : playerHurtboxOffsetY_;
+        const qreal hW = character.kind == QStringLiteral("enemy") ? enemyHurtboxWidth_ : playerHurtboxWidth_;
+        const qreal hH = character.kind == QStringLiteral("enemy") ? enemyHurtboxHeight_ : playerHurtboxHeight_;
+        const QRectF hr(character.position.x() + hOffX, character.position.y() + hOffY, hW, hH);
+        const qreal previousBottom = hr.bottom() - character.velocity.y();
+        if (previousBottom <= piece.rect.top() && hr.bottom() >= piece.rect.top() && hr.right() > piece.rect.left() && hr.left() < piece.rect.right()) {
+            character.position.setY(piece.rect.top() - hOffY - hH);
             character.velocity.setY(0);
             body.moveTop(character.position.y());
+        }
+
+        // Left edge blocking using HURTBOX (white debug box) instead of full body
+        if (piece.kind != QStringLiteral("stairs")) {
+            const qreal overlapTop = std::max(hr.top(), piece.rect.top());
+            const qreal overlapBottom = std::min(hr.bottom(), piece.rect.bottom());
+            const qreal overlapHeight = overlapBottom - overlapTop;
+            if (overlapHeight > hr.height() * 0.2) {
+                const qreal previousRight = hr.right() - character.velocity.x();
+                if (previousRight <= piece.rect.left() && hr.right() > piece.rect.left() && hr.left() < piece.rect.right()) {
+                    const qreal pushX = piece.rect.left() - hOffX - hW;
+                    character.position.setX(pushX);
+                    character.velocity.setX(0);
+                }
+            }
         }
     }
 }

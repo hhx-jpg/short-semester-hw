@@ -25,6 +25,9 @@ class GameWorldViewModel : public QObject {
     Q_PROPERTY(qreal mapHeight READ mapHeight NOTIFY viewportChanged)
     Q_PROPERTY(qreal mapX READ mapX NOTIFY viewportChanged)
     Q_PROPERTY(qreal mapY READ mapY NOTIFY viewportChanged)
+    Q_PROPERTY(int playerHp READ playerHp NOTIFY worldChanged)
+    Q_PROPERTY(int playerMaxHp READ playerMaxHp NOTIFY worldChanged)
+    Q_PROPERTY(int playerHeartCount READ playerHeartCount NOTIFY worldChanged)
 
 public:
     explicit GameWorldViewModel(QObject* parent = nullptr);
@@ -40,6 +43,9 @@ public:
     qreal mapHeight() const;
     qreal mapX() const;
     qreal mapY() const;
+    int playerHp() const;
+    int playerMaxHp() const;
+    int playerHeartCount() const;
 
     Q_INVOKABLE void reset();
     Q_INVOKABLE void setViewport(qreal width, qreal height);
@@ -118,6 +124,7 @@ private:
     void buildOriginalScene();
     void buildBackground2Scene();
     void switchToScene(SceneId scene, EntrySide entrySide);
+    void requestSceneSwitch(SceneId scene, EntrySide entrySide);
     QRectF imageRectToWorld(qreal x1, qreal y1, qreal x2, qreal y2, qreal imageWidth, qreal imageHeight) const;
     void updateCharacterAnimation(CharacterObject& character, int deltaMs);
     void updatePhysics(CharacterObject& character, int deltaMs);
@@ -173,6 +180,10 @@ private:
     QList<MapLayer> mapLayers_;
     QSet<QString> resolvedAttackTokens_;
     int damageCount_ = 0;
+
+    bool pendingSceneSwitch_ = false;
+    SceneId pendingScene_ = SceneId::OriginalFactory;
+    EntrySide pendingEntrySide_ = EntrySide::Left;
 };
 
 } // namespace skybound

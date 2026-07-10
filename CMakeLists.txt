@@ -68,6 +68,10 @@ qt_add_resources(SkyboundTactics sprite_resources
         resources/player/attack.png
         resources/player/roll.png
         resources/player/dead.png
+        resources/player/hit/1.png
+        resources/player/hit/2.png
+        resources/player/hit/3.png
+        resources/player/hit/4.png
         resources/player/vfx_attack_down.png
         resources/player/vfx_attack_left.png
         resources/player/vfx_attack_right.png

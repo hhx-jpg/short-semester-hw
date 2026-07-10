@@ -66,6 +66,11 @@ ApplicationWindow {
                 event.accepted = true
                 return
             }
+            if (event.key === Qt.Key_K && !event.isAutoRepeat) {
+                gameWorld.playerTakeHit(10)
+                event.accepted = true
+                return
+            }
         }
 
         Keys.onReleased: function(event) {
@@ -121,7 +126,7 @@ ApplicationWindow {
                 y: modelData.y
                 width: modelData.width
                 height: modelData.height
-                visible: modelData.kind !== "ground"
+                visible: false
                 color: "#33ffffff"
                 border.color: "#99ffffff"
                 border.width: 1
@@ -139,23 +144,30 @@ ApplicationWindow {
         Repeater {
             model: gameWorld.characters
 
-            Image {
-                id: characterSprite
+            Item {
+                id: characterItem
                 x: modelData.x
                 y: modelData.y
                 width: modelData.width
                 height: modelData.height
                 z: 2
-                source: resourceManager.animationFrame(modelData.animationKey, modelData.frameIndex)
-                fillMode: Image.PreserveAspectFit
-                smooth: false
+                clip: true
 
-                transform: Scale {
-                    origin.x: characterSprite.width / 2
-                    origin.y: characterSprite.height / 2
-                    xScale: modelData.facingLeft ? 1 : -1
-                    yScale: 1
+                Image {
+                    id: characterSprite
+                    anchors.fill: parent
+                    source: resourceManager.animationFrame(modelData.animationKey, modelData.frameIndex)
+                    fillMode: Image.PreserveAspectFit
+                    smooth: false
+
+                    transform: Scale {
+                        origin.x: characterSprite.width / 2
+                        origin.y: characterSprite.height / 2
+                        xScale: modelData.facingLeft ? 1 : -1
+                        yScale: 1
+                    }
                 }
+
             }
         }
 
@@ -194,11 +206,43 @@ ApplicationWindow {
                 width: modelData.width
                 height: modelData.height
                 visible: modelData.active
-                color: "transparent"
-                border.color: "white"
+                color: modelData.boxType === "terrain" ? "#6600ff00" : "transparent"
                 border.width: 2
-                opacity: modelData.boxType === "attackBox" ? 0.55 : 0.9
+                opacity: 0.9
                 z: 20
+
+                border.color: {
+                    if (modelData.boxType === "terrain") return "#00ff00"
+                    if (modelData.boxType === "attackBox") return "#ff4444"
+                    return "#ffffff"
+                }
+            }
+        }
+
+        // 血量心形显示
+        Item {
+            x: 14
+            y: 66
+            width: 310
+            height: 35
+            z: 100
+
+            Row {
+                anchors.fill: parent
+                spacing: 4
+
+                Repeater {
+                    model: gameWorld.playerHeartCount
+
+                    Image {
+                        width: 26
+                        height: 26
+                        anchors.verticalCenter: parent.verticalCenter
+                        source: "qrc:/resources/ui_heart.png"
+                        sourceSize.width: 32
+                        sourceSize.height: 32
+                    }
+                }
             }
         }
 
@@ -206,7 +250,8 @@ ApplicationWindow {
             anchors.left: parent.left
             anchors.top: parent.top
             anchors.margins: 16
-            text: "A/D 移动 · Space 跳跃 · Shift 翻滚 · 右键攻击 · W/S+右键 上/下攻击"
+            anchors.topMargin: 28
+            text: "A/D 移动 · Space 跳跃 · Shift 翻滚 · 右键攻击 · W/S+右键 上/下攻击 · K 受击"
             color: "white"
             opacity: 0.75
             font.pixelSize: 18
@@ -225,9 +270,26 @@ ApplicationWindow {
             z: 30
         }
 
+        Text {
+            id: coordText
+            anchors.right: parent.right
+            anchors.bottom: parent.bottom
+            anchors.margins: 8
+            text: "X: 0  Y: 0"
+            color: "#88ff88"
+            opacity: 0.7
+            font.pixelSize: 14
+            font.family: "monospace"
+            z: 30
+        }
+
         MouseArea {
             anchors.fill: parent
             acceptedButtons: Qt.LeftButton | Qt.RightButton
+            hoverEnabled: true
+            onPositionChanged: function(mouse) {
+                coordText.text = "X: " + Math.round(mouse.x) + "  Y: " + Math.round(mouse.y)
+            }
             onClicked: function(mouse) {
                 playField.forceActiveFocus()
                 if (mouse.button === Qt.RightButton) {

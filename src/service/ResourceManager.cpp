@@ -67,6 +67,9 @@ void ResourceManager::registerDefaults() {
     registerImage(QStringLiteral("player.attack"), QStringLiteral("qrc:/resources/player/attack.png"));
     registerImage(QStringLiteral("player.roll"), QStringLiteral("qrc:/resources/player/roll.png"));
     registerImage(QStringLiteral("player.dead"), QStringLiteral("qrc:/resources/player/dead.png"));
+    for (int i = 1; i <= 4; ++i) {
+        registerImage(QStringLiteral("player.hit.%1").arg(i), QStringLiteral("qrc:/resources/player/hit/%1.png").arg(i));
+    }
 
     registerImage(QStringLiteral("player.vfx.attack.down"), QStringLiteral("qrc:/resources/player/vfx_attack_down.png"));
     registerImage(QStringLiteral("player.vfx.attack.left"), QStringLiteral("qrc:/resources/player/vfx_attack_left.png"));
@@ -89,6 +92,12 @@ void ResourceManager::registerDefaults() {
     registerAnimation(QStringLiteral("enemy.attack"), runFrames);
     registerAnimation(QStringLiteral("enemy.hit"), QStringList{QStringLiteral("enemy.run.1")});
     registerAnimation(QStringLiteral("enemy.skill"), runFrames);
+    QStringList hitFrames;
+    for (int i = 1; i <= 4; ++i) {
+        hitFrames.push_back(QStringLiteral("player.hit.%1").arg(i));
+    }
+    registerAnimation(QStringLiteral("player.hit"), hitFrames);
+
     registerAnimation(QStringLiteral("enemy.dead"), QStringList{QStringLiteral("enemy.run.1")});
 
     registerAudio(QStringLiteral("bgm.factory"), QStringLiteral("qrc:/resources/audio/bgm.mp3"));
