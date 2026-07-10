@@ -223,7 +223,7 @@ ApplicationWindow {
                     transform: Scale {
                         origin.x: width / 2
                         origin.y: height / 2
-                        xScale: parent.beeAttackVfx && modelData.attackDirection === "right" ? -1 : 1
+                        xScale: parent.beeAttackVfx && modelData.attackDirection === "left" ? -1 : 1
                         yScale: 1
                     }
                 }

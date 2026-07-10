@@ -1,10 +1,10 @@
 #pragma once
 
+#include "model/GameWorldTypes.h"
+
 #include <QHash>
 #include <QList>
 #include <QObject>
-#include <QPointF>
-#include <QRectF>
 #include <QSet>
 #include <QString>
 #include <QVariantList>
@@ -70,95 +70,21 @@ signals:
     void chargeProgressChanged();
 
 private:
-    enum class SceneId {
-        OriginalFactory,
-        Background2Factory,
-    };
-
-    enum class EntrySide {
-        Left,
-        Right,
-    };
-
-    struct CollisionBox {
-        QRectF rect;
-        bool active = true;
-    };
-
-    struct CharacterObject {
-        QString id;
-        QString kind;
-        int hp = 100;
-        int maxHp = 100;
-        int lives = 1;
-        QPointF position;
-        QPointF velocity;
-        bool facingLeft = true;
-        bool alive = true;
-        QString state = QStringLiteral("idle");
-        QString animationKey = QStringLiteral("enemy.idle");
-        int frameIndex = 0;
-        int frameCount = 1;
-        int frameIntervalMs = 90;
-        int frameElapsedMs = 0;
-        int actionElapsedMs = 0;
-        int actionDurationMs = 0;
-        QString attackDirection = QStringLiteral("left");
-        QString animationFamily = QStringLiteral("enemy");
-        QString attackVfxKey;
-        int attackSerial = 0;
-        int attackDamage = 10;
-        int attackCooldownMs = 900;
-        int attackCooldownRemainingMs = 0;
-        int moveDirection = 0;
-        bool rollAttack = false;
-        bool aiControlled = false;
-        qreal detectionRange = 600;
-        qreal attackRange = 95;
-        qreal npcMoveSpeed = 2.2;
-        CollisionBox hurtbox;
-        CollisionBox attackBox;
-    };
-
-    struct TerrainPiece {
-        QString id;
-        QString kind;
-        QRectF rect;
-        bool solid = true;
-    };
-
-    struct MapLayer {
-        QString id;
-        QString imageKey;
-        QRectF rect;
-        qreal opacity = 1.0;
-    };
-
     void initializeWorld();
     void updateMapGeometry();
-    void buildOriginalScene();
-    void buildBackground2Scene();
     void switchToScene(SceneId scene, EntrySide entrySide);
-    void requestSceneSwitch(SceneId scene, EntrySide entrySide);
-    QRectF imageRectToWorld(qreal x1, qreal y1, qreal x2, qreal y2, qreal imageWidth, qreal imageHeight) const;
-    void updateCharacterAnimation(CharacterObject& character, int deltaMs);
-    void updateNpcLogic(CharacterObject& character, int deltaMs);
-    void updatePhysics(CharacterObject& character, int deltaMs);
-    void updateCollisionBoxes(CharacterObject& character);
-    void resolveTerrainCollision(CharacterObject& character);
-    void setCharacterState(CharacterObject& character, const QString& state, int frameCount, int frameIntervalMs, int durationMs = 0);
-    void beginAttack(CharacterObject& attacker, const QString& direction, int frameCount, int frameIntervalMs, int durationMs);
-    void checkAttackHits(CharacterObject& attacker);
-    void checkPlayerAttackHits();
+    void applySceneSwitch(const SceneSwitchRequest& sceneSwitch);
+    void updateCharge(int deltaMs, WorldEvents& events);
+    void emitEvents(const WorldEvents& events);
     CharacterObject* player();
     const CharacterObject* player() const;
     QVariantMap rectToVariant(const QRectF& rect) const;
     QVariantMap pointToVariant(const QPointF& point) const;
     QVariantMap boxToVariant(const CollisionBox& box) const;
     QVariantMap characterToVariant(const CharacterObject& character) const;
-    bool canUseBox(const CollisionBox& box) const;
 
     SceneId currentScene_ = SceneId::OriginalFactory;
+    WorldTuning tuning_;
     qreal viewportWidth_ = 1200;
     qreal viewportHeight_ = 760;
     qreal mapAspect_ = 1695.0 / 725.0;
@@ -168,47 +94,14 @@ private:
     qreal mapY_ = 391;
     qreal playableLeft_ = 0;
     qreal playableRight_ = 1200;
-    qreal gravity_ = 0.62;
-    qreal jumpVelocity_ = -13.0;
-    qreal maxFallVelocity_ = 16.0;
-    qreal moveSpeed_ = 4.6;
-    qreal actorWidth_ = 90;
-    qreal actorHeight_ = 90;
-    qreal playerHurtboxOffsetX_ = 23;
-    qreal playerHurtboxOffsetY_ = 12;
-    qreal playerHurtboxWidth_ = 44;
-    qreal playerHurtboxHeight_ = 72;
-    qreal enemyHurtboxOffsetX_ = 23;
-    qreal enemyHurtboxOffsetY_ = 12;
-    qreal enemyHurtboxWidth_ = 44;
-    qreal enemyHurtboxHeight_ = 72;
-    qreal attackBoxWidth_ = 138;
-    qreal attackBoxHeight_ = 60;
-    qreal attackOffsetLeftX_ = -94;
-    qreal attackOffsetLeftY_ = 18;
-    qreal attackOffsetRightX_ = 46;
-    qreal attackOffsetRightY_ = 18;
-    qreal attackOffsetUpX_ = 15;
-    qreal attackOffsetUpY_ = -96;
-    qreal attackOffsetDownX_ = 15;
-    qreal attackOffsetDownY_ = 54;
-    qreal rollAttackBoxWidth_ = 240;
-    qreal rollAttackBoxHeight_ = 36;
-    qreal burstBoxWidth_ = 200;
-    qreal burstBoxHeight_ = 200;
-    qreal chargeThresholdMs_ = 350.0;
-    mutable qreal chargeProgress_ = 0.0;
-    bool chargePressed_ = false;
 
     QHash<QString, CharacterObject> characters_;
     QList<TerrainPiece> terrain_;
     QList<MapLayer> mapLayers_;
     QSet<QString> resolvedAttackTokens_;
     int damageCount_ = 0;
-
-    bool pendingSceneSwitch_ = false;
-    SceneId pendingScene_ = SceneId::OriginalFactory;
-    EntrySide pendingEntrySide_ = EntrySide::Left;
+    qreal chargeProgress_ = 0.0;
+    bool chargePressed_ = false;
 };
 
 } // namespace skybound

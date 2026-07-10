@@ -14,6 +14,21 @@ add_executable(SkyboundTactics WIN32
     src/main.cpp
     src/service/ResourceManager.h
     src/service/ResourceManager.cpp
+    src/model/GameWorldTypes.h
+    src/domain/CharacterFactory.h
+    src/domain/CharacterFactory.cpp
+    src/domain/CharacterSystem.h
+    src/domain/CharacterSystem.cpp
+    src/domain/CollisionSystem.h
+    src/domain/CollisionSystem.cpp
+    src/domain/CombatSystem.h
+    src/domain/CombatSystem.cpp
+    src/domain/NpcSystem.h
+    src/domain/NpcSystem.cpp
+    src/domain/PhysicsSystem.h
+    src/domain/PhysicsSystem.cpp
+    src/domain/SceneBuilder.h
+    src/domain/SceneBuilder.cpp
     src/viewmodel/GameWorldViewModel.h
     src/viewmodel/GameWorldViewModel.cpp
 )
