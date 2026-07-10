@@ -28,6 +28,7 @@ class GameWorldViewModel : public QObject {
     Q_PROPERTY(int playerHp READ playerHp NOTIFY worldChanged)
     Q_PROPERTY(int playerMaxHp READ playerMaxHp NOTIFY worldChanged)
     Q_PROPERTY(int playerHeartCount READ playerHeartCount NOTIFY worldChanged)
+    Q_PROPERTY(qreal chargeProgress READ chargeProgress NOTIFY chargeProgressChanged)
 
 public:
     explicit GameWorldViewModel(QObject* parent = nullptr);
@@ -46,6 +47,7 @@ public:
     int playerHp() const;
     int playerMaxHp() const;
     int playerHeartCount() const;
+    qreal chargeProgress() const;
 
     Q_INVOKABLE void reset();
     Q_INVOKABLE void setViewport(qreal width, qreal height);
@@ -57,12 +59,15 @@ public:
     Q_INVOKABLE void playerAttack(const QString& direction);
     Q_INVOKABLE void playerTakeHit(int damage);
     Q_INVOKABLE void playerCastSkill(const QString& skillId);
+    Q_INVOKABLE void setChargePressed(bool pressed);
+    Q_INVOKABLE void playerBurstAttack();
 
 signals:
     void worldChanged();
     void viewportChanged();
     void damageCountChanged();
     void soundRequested(const QString& key);
+    void chargeProgressChanged();
 
 private:
     enum class SceneId {
@@ -99,8 +104,18 @@ private:
         int actionElapsedMs = 0;
         int actionDurationMs = 0;
         QString attackDirection = QStringLiteral("left");
+        QString animationFamily = QStringLiteral("enemy");
+        QString attackVfxKey;
         int attackSerial = 0;
+        int attackDamage = 10;
+        int attackCooldownMs = 900;
+        int attackCooldownRemainingMs = 0;
         int moveDirection = 0;
+        bool rollAttack = false;
+        bool aiControlled = false;
+        qreal detectionRange = 600;
+        qreal attackRange = 95;
+        qreal npcMoveSpeed = 2.2;
         CollisionBox hurtbox;
         CollisionBox attackBox;
     };
@@ -127,10 +142,13 @@ private:
     void requestSceneSwitch(SceneId scene, EntrySide entrySide);
     QRectF imageRectToWorld(qreal x1, qreal y1, qreal x2, qreal y2, qreal imageWidth, qreal imageHeight) const;
     void updateCharacterAnimation(CharacterObject& character, int deltaMs);
+    void updateNpcLogic(CharacterObject& character, int deltaMs);
     void updatePhysics(CharacterObject& character, int deltaMs);
     void updateCollisionBoxes(CharacterObject& character);
     void resolveTerrainCollision(CharacterObject& character);
     void setCharacterState(CharacterObject& character, const QString& state, int frameCount, int frameIntervalMs, int durationMs = 0);
+    void beginAttack(CharacterObject& attacker, const QString& direction, int frameCount, int frameIntervalMs, int durationMs);
+    void checkAttackHits(CharacterObject& attacker);
     void checkPlayerAttackHits();
     CharacterObject* player();
     const CharacterObject* player() const;
@@ -174,6 +192,13 @@ private:
     qreal attackOffsetUpY_ = -96;
     qreal attackOffsetDownX_ = 15;
     qreal attackOffsetDownY_ = 54;
+    qreal rollAttackBoxWidth_ = 240;
+    qreal rollAttackBoxHeight_ = 36;
+    qreal burstBoxWidth_ = 200;
+    qreal burstBoxHeight_ = 200;
+    qreal chargeThresholdMs_ = 350.0;
+    mutable qreal chargeProgress_ = 0.0;
+    bool chargePressed_ = false;
 
     QHash<QString, CharacterObject> characters_;
     QList<TerrainPiece> terrain_;

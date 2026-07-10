@@ -5,6 +5,10 @@ ApplicationWindow {
     id: root
     width: 1200
     height: 760
+    minimumWidth: 1200
+    maximumWidth: 1200
+    minimumHeight: 760
+    maximumHeight: 760
     visible: true
     title: "Skybound Tactics - 平台动作原型"
     color: "black"
@@ -153,12 +157,31 @@ ApplicationWindow {
                 z: 2
                 clip: true
 
-                Image {
+                Item {
                     id: characterSprite
                     anchors.fill: parent
-                    source: resourceManager.animationFrame(modelData.animationKey, modelData.frameIndex)
-                    fillMode: Image.PreserveAspectFit
-                    smooth: false
+                    clip: resourceManager.isSpriteSheetAnimation(modelData.animationKey)
+
+                    Image {
+                        anchors.fill: parent
+                        visible: !resourceManager.isSpriteSheetAnimation(modelData.animationKey)
+                        source: resourceManager.animationFrame(modelData.animationKey, modelData.frameIndex)
+                        fillMode: Image.PreserveAspectFit
+                        smooth: false
+                    }
+
+                    Image {
+                        readonly property int sheetFrameCount: resourceManager.spriteSheetFrameCount(modelData.animationKey)
+
+                        x: -modelData.frameIndex * characterSprite.width
+                        y: 0
+                        width: characterSprite.width * Math.max(1, sheetFrameCount)
+                        height: characterSprite.height
+                        visible: resourceManager.isSpriteSheetAnimation(modelData.animationKey)
+                        source: resourceManager.spriteSheetImage(modelData.animationKey)
+                        fillMode: Image.Stretch
+                        smooth: false
+                    }
 
                     transform: Scale {
                         origin.x: characterSprite.width / 2
@@ -175,24 +198,34 @@ ApplicationWindow {
             model: gameWorld.characters
 
             Item {
-                readonly property real vfxSize: modelData.attackVfxSize > 0 ? modelData.attackVfxSize : Math.max(modelData.attackBox.width, modelData.attackBox.height)
+                readonly property bool beeAttackVfx: modelData.attackVfxKey !== ""
+                readonly property real baseVfxSize: modelData.attackVfxSize > 0 ? modelData.attackVfxSize : Math.max(modelData.attackBox.width, modelData.attackBox.height)
+                readonly property real vfxSize: beeAttackVfx ? baseVfxSize * 1.4 : baseVfxSize
+                readonly property int vfxFrameCount: beeAttackVfx ? resourceManager.spriteSheetFrameCount(modelData.attackVfxKey) : 5
 
                 x: modelData.attackBox.x + (modelData.attackBox.width - vfxSize) / 2
                 y: modelData.attackBox.y + (modelData.attackBox.height - vfxSize) / 2
                 width: vfxSize
                 height: vfxSize
                 z: 3
-                visible: modelData.kind === "player" && (modelData.state === "attack" || modelData.state === "skill")
+                visible: (modelData.state === "attack" || modelData.state === "skill") && (modelData.kind === "player" || beeAttackVfx)
                 clip: true
 
                 Image {
-                    x: -modelData.frameIndex * parent.vfxSize
+                    x: -Math.min(modelData.frameIndex, parent.vfxFrameCount - 1) * parent.vfxSize
                     y: 0
-                    width: parent.vfxSize * 5
+                    width: parent.vfxSize * parent.vfxFrameCount
                     height: parent.vfxSize
-                    source: "qrc:/resources/player/vfx_attack_" + modelData.attackDirection + ".png"
+                    source: parent.beeAttackVfx ? resourceManager.spriteSheetImage(modelData.attackVfxKey) : "qrc:/resources/player/vfx_attack_" + modelData.attackDirection + ".png"
                     fillMode: Image.Stretch
                     smooth: false
+
+                    transform: Scale {
+                        origin.x: width / 2
+                        origin.y: height / 2
+                        xScale: parent.beeAttackVfx && modelData.attackDirection === "right" ? -1 : 1
+                        yScale: 1
+                    }
                 }
             }
         }
@@ -246,12 +279,48 @@ ApplicationWindow {
             }
         }
 
+        // 蓄力条 - 画面左下角
+        Item {
+            x: 14
+            y: parent.height - 40
+            width: 140
+            height: 16
+            z: 100
+            visible: gameWorld.chargeProgress > 0.0
+
+            Rectangle {
+                anchors.fill: parent
+                color: "#88000000"
+                radius: 3
+                border.color: "#888888"
+                border.width: 1
+            }
+
+            Rectangle {
+                anchors.left: parent.left
+                anchors.top: parent.top
+                anchors.bottom: parent.bottom
+                anchors.margins: 2
+                width: (parent.width - 4) * gameWorld.chargeProgress
+                radius: 2
+                color: gameWorld.chargeProgress >= 1.0 ? "#ff4444" : "#44aaff"
+            }
+
+            Text {
+                anchors.centerIn: parent
+                text: gameWorld.chargeProgress >= 1.0 ? "释放！" : "蓄力 " + Math.round(gameWorld.chargeProgress * 100) + "%"
+                color: "white"
+                font.pixelSize: 11
+                font.bold: true
+            }
+        }
+
         Text {
             anchors.left: parent.left
             anchors.top: parent.top
             anchors.margins: 16
             anchors.topMargin: 28
-            text: "A/D 移动 · Space 跳跃 · Shift 翻滚 · 右键攻击 · W/S+右键 上/下攻击 · K 受击"
+            text: "A/D 移动 · Space 跳跃 · Shift 翻滚 · 右键攻击(长按蓄力) · W/S+右键 上/下攻击 · K 受击"
             color: "white"
             opacity: 0.75
             font.pixelSize: 18
@@ -290,10 +359,21 @@ ApplicationWindow {
             onPositionChanged: function(mouse) {
                 coordText.text = "X: " + Math.round(mouse.x) + "  Y: " + Math.round(mouse.y)
             }
-            onClicked: function(mouse) {
+            onPressed: function(mouse) {
                 playField.forceActiveFocus()
                 if (mouse.button === Qt.RightButton) {
-                    gameWorld.playerAttack(playField.attackDirection())
+                    gameWorld.setChargePressed(true)
+                }
+            }
+            onReleased: function(mouse) {
+                if (mouse.button === Qt.RightButton) {
+                    var wasCharged = gameWorld.chargeProgress >= 1.0
+                    gameWorld.setChargePressed(false)
+                    if (wasCharged) {
+                        gameWorld.playerBurstAttack()
+                    } else {
+                        gameWorld.playerAttack(playField.attackDirection())
+                    }
                 }
             }
         }

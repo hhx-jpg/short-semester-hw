@@ -51,9 +51,41 @@ QVariantList ResourceManager::animationFrames(const QString& animationKey) const
     return result;
 }
 
+bool ResourceManager::isSpriteSheetAnimation(const QString& animationKey) const {
+    return spriteSheets_.find(keyOf(animationKey)) != spriteSheets_.end();
+}
+
+QString ResourceManager::spriteSheetImage(const QString& animationKey) const {
+    const auto it = spriteSheets_.find(keyOf(animationKey));
+    return it == spriteSheets_.end() ? QString{} : image(it->second.imageKey);
+}
+
+int ResourceManager::spriteSheetFrameWidth(const QString& animationKey) const {
+    const auto it = spriteSheets_.find(keyOf(animationKey));
+    return it == spriteSheets_.end() ? 0 : it->second.frameWidth;
+}
+
+int ResourceManager::spriteSheetFrameHeight(const QString& animationKey) const {
+    const auto it = spriteSheets_.find(keyOf(animationKey));
+    return it == spriteSheets_.end() ? 0 : it->second.frameHeight;
+}
+
+int ResourceManager::spriteSheetFrameCount(const QString& animationKey) const {
+    const auto it = spriteSheets_.find(keyOf(animationKey));
+    return it == spriteSheets_.end() ? 0 : it->second.frameCount;
+}
+
 void ResourceManager::registerDefaults() {
     registerImage(QStringLiteral("scene.factory.background"), QStringLiteral("qrc:/resources/background.png"));
     registerImage(QStringLiteral("scene.factory.background2"), QStringLiteral("qrc:/resources/background2.png"));
+    registerImage(QStringLiteral("mob.small_bee.fly.sheet"), QStringLiteral("qrc:/resources/Mob/Small Bee/Fly/Fly-Sheet.png"));
+    registerImage(QStringLiteral("mob.small_bee.attack.sheet"), QStringLiteral("qrc:/resources/Mob/Small Bee/Attack/Attack-Sheet.png"));
+    registerImage(QStringLiteral("mob.small_bee.hit.sheet"), QStringLiteral("qrc:/resources/Mob/Small Bee/Hit/Hit-Sheet.png"));
+    registerImage(QStringLiteral("mob.small_bee.vfx.attack.sheet"), QStringLiteral("qrc:/resources/Mob/Small Bee/Hit/hit.png"));
+    registerSpriteSheet(QStringLiteral("mob.small_bee.fly"), QStringLiteral("mob.small_bee.fly.sheet"), 64, 64, 4);
+    registerSpriteSheet(QStringLiteral("mob.small_bee.attack"), QStringLiteral("mob.small_bee.attack.sheet"), 64, 64, 4);
+    registerSpriteSheet(QStringLiteral("mob.small_bee.hit"), QStringLiteral("mob.small_bee.hit.sheet"), 64, 64, 4);
+    registerSpriteSheet(QStringLiteral("mob.small_bee.vfx.attack"), QStringLiteral("mob.small_bee.vfx.attack.sheet"), 1024, 1024, 4);
 
     for (int i = 1; i <= 8; ++i) {
         registerImage(QStringLiteral("enemy.run.%1").arg(i), QStringLiteral("qrc:/resources/enemy/run/%1.png").arg(i));
@@ -122,6 +154,10 @@ void ResourceManager::registerAudio(const QString& key, const QString& url) {
 
 void ResourceManager::registerAnimation(const QString& key, const QStringList& imageKeys) {
     animations_[keyOf(key)] = imageKeys;
+}
+
+void ResourceManager::registerSpriteSheet(const QString& key, const QString& imageKey, int frameWidth, int frameHeight, int frameCount) {
+    spriteSheets_[keyOf(key)] = SpriteSheet{imageKey, frameWidth, frameHeight, frameCount};
 }
 
 } // namespace skybound

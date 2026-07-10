@@ -9,7 +9,17 @@ namespace skybound {
 namespace {
 constexpr int kFrameMs = 16;
 
-QString animationForState(const QString& state) {
+QString animationForFamilyState(const QString& family, const QString& state) {
+    if (family == QStringLiteral("small_bee")) {
+        if (state == QStringLiteral("attack")) {
+            return QStringLiteral("mob.small_bee.attack");
+        }
+        if (state == QStringLiteral("hit")) {
+            return QStringLiteral("mob.small_bee.hit");
+        }
+        return QStringLiteral("mob.small_bee.fly");
+    }
+
     if (state == QStringLiteral("jump") || state == QStringLiteral("fall")) {
         return QStringLiteral("enemy.jump");
     }
@@ -155,8 +165,14 @@ int GameWorldViewModel::playerHeartCount() const {
     return p ? p->hp / 10 : 0;
 }
 
+qreal GameWorldViewModel::chargeProgress() const {
+    return chargeProgress_;
+}
+
 void GameWorldViewModel::reset() {
     damageCount_ = 0;
+    chargePressed_ = false;
+    chargeProgress_ = 0.0;
     resolvedAttackTokens_.clear();
     initializeWorld();
     emit damageCountChanged();
@@ -179,10 +195,18 @@ void GameWorldViewModel::tick(int deltaMs) {
     const int dt = deltaMs <= 0 ? kFrameMs : deltaMs;
     pendingSceneSwitch_ = false;
 
+    if (chargePressed_) {
+        chargeProgress_ = std::min<qreal>(1.0, chargeProgress_ + dt / chargeThresholdMs_);
+        emit chargeProgressChanged();
+    }
+
     for (auto it = characters_.begin(); it != characters_.end(); ++it) {
         auto& character = it.value();
         if (!character.alive) {
             continue;
+        }
+        if (character.aiControlled) {
+            updateNpcLogic(character, dt);
         }
         updateCharacterAnimation(character, dt);
         updatePhysics(character, dt);
@@ -194,7 +218,9 @@ void GameWorldViewModel::tick(int deltaMs) {
         pendingSceneSwitch_ = false;
     }
 
-    checkPlayerAttackHits();
+    for (auto it = characters_.begin(); it != characters_.end(); ++it) {
+        checkAttackHits(it.value());
+    }
     emit worldChanged();
 }
 
@@ -267,17 +293,21 @@ void GameWorldViewModel::playerAttack(const QString& direction) {
         return;
     }
 
+    const bool isRollAttack = p->state == QStringLiteral("roll");
+    p->rollAttack = isRollAttack;
+
     QString resolved = direction;
     if (resolved.isEmpty()) {
         resolved = p->facingLeft ? QStringLiteral("left") : QStringLiteral("right");
     }
-    p->attackDirection = resolved;
-    p->attackSerial += 1;
-    p->attackBox.active = true;
-    setCharacterState(*p, QStringLiteral("attack"), 5, 55, 275);
+    beginAttack(*p, resolved, isRollAttack ? 8 : 5, isRollAttack ? 65 : 55, isRollAttack ? 520 : 275);
+    if (isRollAttack) {
+        p->state = QStringLiteral("skill");
+        p->animationKey = animationForFamilyState(p->animationFamily, p->state);
+    }
     updateCollisionBoxes(*p);
-    checkPlayerAttackHits();
-    emit soundRequested(QStringLiteral("player.attack.1"));
+    checkAttackHits(*p);
+    emit soundRequested(isRollAttack ? QStringLiteral("player.attack.2") : QStringLiteral("player.attack.1"));
     emit worldChanged();
 }
 
@@ -309,12 +339,44 @@ void GameWorldViewModel::playerCastSkill(const QString& skillId) {
         return;
     }
 
-    p->attackDirection = p->facingLeft ? QStringLiteral("left") : QStringLiteral("right");
-    p->attackSerial += 1;
-    p->attackBox.active = true;
-    setCharacterState(*p, QStringLiteral("skill"), 8, 65, 520);
+    beginAttack(*p, p->facingLeft ? QStringLiteral("left") : QStringLiteral("right"), 8, 65, 520);
+    p->state = QStringLiteral("skill");
+    p->animationKey = animationForFamilyState(p->animationFamily, p->state);
     emit soundRequested(QStringLiteral("player.attack.2"));
     Q_UNUSED(skillId);
+    emit worldChanged();
+}
+
+void GameWorldViewModel::setChargePressed(bool pressed) {
+    chargePressed_ = pressed;
+    if (pressed) {
+        auto* p = player();
+        if (p) {
+            p->moveDirection = 0;
+            p->velocity.setX(0);
+        }
+        return;
+    }
+
+    chargeProgress_ = 0.0;
+    emit chargeProgressChanged();
+}
+
+void GameWorldViewModel::playerBurstAttack() {
+    auto* p = player();
+    if (!p || !p->alive) {
+        return;
+    }
+
+    p->moveDirection = 0;
+    p->velocity.setX(0);
+    p->rollAttack = false;
+    beginAttack(*p, QStringLiteral("burst"), 8, 65, 400);
+    p->state = QStringLiteral("skill");
+    p->animationKey = animationForFamilyState(p->animationFamily, p->state);
+    updateCollisionBoxes(*p);
+    checkAttackHits(*p);
+    emit soundRequested(QStringLiteral("player.attack.2"));
     emit worldChanged();
 }
 
@@ -338,17 +400,25 @@ void GameWorldViewModel::initializeWorld() {
     updateCollisionBoxes(playerCharacter);
     characters_.insert(playerCharacter.id, playerCharacter);
 
-    CharacterObject enemy;
-    enemy.id = QStringLiteral("enemy_1");
-    enemy.kind = QStringLiteral("enemy");
-    enemy.hp = 100;
-    enemy.maxHp = 100;
-    enemy.lives = 1;
-    enemy.position = QPointF(std::min(playableRight_ - actorWidth_, playableLeft_ + (playableRight_ - playableLeft_) * 0.72), spawnY);
-    enemy.facingLeft = false;
-    setCharacterState(enemy, QStringLiteral("idle"), 1, 90);
-    updateCollisionBoxes(enemy);
-    characters_.insert(enemy.id, enemy);
+    CharacterObject bee;
+    bee.id = QStringLiteral("small_bee_1");
+    bee.kind = QStringLiteral("enemy");
+    bee.animationFamily = QStringLiteral("small_bee");
+    bee.attackVfxKey = QStringLiteral("mob.small_bee.vfx.attack");
+    bee.hp = 30;
+    bee.maxHp = 30;
+    bee.lives = 1;
+    bee.aiControlled = true;
+    bee.attackDamage = 10;
+    bee.attackCooldownMs = 900;
+    bee.detectionRange = 600;
+    bee.attackRange = 95;
+    bee.npcMoveSpeed = 2.2;
+    bee.position = QPointF(std::min(playableRight_ - actorWidth_, playableLeft_ + (playableRight_ - playableLeft_) * 0.72), spawnY);
+    bee.facingLeft = true;
+    setCharacterState(bee, QStringLiteral("idle"), 4, 90);
+    updateCollisionBoxes(bee);
+    characters_.insert(bee.id, bee);
 }
 
 void GameWorldViewModel::updateMapGeometry() {
@@ -423,17 +493,25 @@ void GameWorldViewModel::switchToScene(SceneId scene, EntrySide entrySide) {
     updateCollisionBoxes(playerSnapshot);
     characters_.insert(playerSnapshot.id, playerSnapshot);
 
-    CharacterObject enemy;
-    enemy.id = QStringLiteral("enemy_1");
-    enemy.kind = QStringLiteral("enemy");
-    enemy.hp = 100;
-    enemy.maxHp = 100;
-    enemy.lives = 1;
-    enemy.position = QPointF(std::min(playableRight_ - actorWidth_, playableLeft_ + (playableRight_ - playableLeft_) * 0.72), spawnY);
-    enemy.facingLeft = false;
-    setCharacterState(enemy, QStringLiteral("idle"), 1, 90);
-    updateCollisionBoxes(enemy);
-    characters_.insert(enemy.id, enemy);
+    CharacterObject bee;
+    bee.id = QStringLiteral("small_bee_1");
+    bee.kind = QStringLiteral("enemy");
+    bee.animationFamily = QStringLiteral("small_bee");
+    bee.attackVfxKey = QStringLiteral("mob.small_bee.vfx.attack");
+    bee.hp = 30;
+    bee.maxHp = 30;
+    bee.lives = 1;
+    bee.aiControlled = true;
+    bee.attackDamage = 10;
+    bee.attackCooldownMs = 900;
+    bee.detectionRange = 600;
+    bee.attackRange = 95;
+    bee.npcMoveSpeed = 2.2;
+    bee.position = QPointF(std::min(playableRight_ - actorWidth_, playableLeft_ + (playableRight_ - playableLeft_) * 0.72), spawnY);
+    bee.facingLeft = true;
+    setCharacterState(bee, QStringLiteral("idle"), 4, 90);
+    updateCollisionBoxes(bee);
+    characters_.insert(bee.id, bee);
 
     emit viewportChanged();
     emit worldChanged();
@@ -460,37 +538,43 @@ void GameWorldViewModel::updateCharacterAnimation(CharacterObject& character, in
             character.actionDurationMs = 0;
             character.actionElapsedMs = 0;
             character.attackBox.active = false;
+            character.rollAttack = false;
             const bool airborne = character.velocity.y() != 0;
+            const int movingFrameCount = character.animationFamily == QStringLiteral("small_bee") ? 4 : 8;
             if (airborne) {
-                setCharacterState(character, character.velocity.y() < 0 ? QStringLiteral("jump") : QStringLiteral("fall"), 8, 70);
+                setCharacterState(character, character.velocity.y() < 0 ? QStringLiteral("jump") : QStringLiteral("fall"), movingFrameCount, 70);
             } else if (character.moveDirection != 0) {
-                setCharacterState(character, QStringLiteral("run"), 8, 90);
+                setCharacterState(character, QStringLiteral("run"), movingFrameCount, 90);
             } else {
-                setCharacterState(character, QStringLiteral("idle"), 1, 90);
+                setCharacterState(character, QStringLiteral("idle"), character.animationFamily == QStringLiteral("small_bee") ? 4 : 1, 90);
             }
         }
     }
 }
 
 void GameWorldViewModel::updatePhysics(CharacterObject& character, int deltaMs) {
-    if (character.kind != QStringLiteral("player")) {
-        return;
-    }
-
+    const bool isPlayer = character.kind == QStringLiteral("player");
     const qreal stepScale = deltaMs / static_cast<qreal>(kFrameMs);
-    if (character.state == QStringLiteral("roll")) {
-        character.position.rx() += character.velocity.x() * stepScale;
+
+    if (isPlayer) {
+        if ((character.state == QStringLiteral("skill") && character.attackDirection == QStringLiteral("burst")) || chargePressed_) {
+            character.velocity.setX(0);
+        } else if (character.state == QStringLiteral("roll")) {
+            character.position.rx() += character.velocity.x() * stepScale;
+        } else {
+            character.velocity.setX(character.moveDirection * moveSpeed_);
+            character.position.rx() += character.velocity.x() * stepScale;
+        }
     } else {
-        character.velocity.setX(character.moveDirection * moveSpeed_);
         character.position.rx() += character.velocity.x() * stepScale;
     }
 
     character.velocity.setY(std::min(maxFallVelocity_, character.velocity.y() + gravity_ * stepScale));
     character.position.ry() += character.velocity.y() * stepScale;
 
-    if (currentScene_ == SceneId::OriginalFactory && character.position.x() > playableRight_ - actorWidth_) {
+    if (isPlayer && currentScene_ == SceneId::OriginalFactory && character.position.x() > playableRight_ - actorWidth_) {
         requestSceneSwitch(SceneId::Background2Factory, EntrySide::Left);
-    } else if (currentScene_ == SceneId::Background2Factory && character.position.x() < playableLeft_) {
+    } else if (isPlayer && currentScene_ == SceneId::Background2Factory && character.position.x() < playableLeft_) {
         requestSceneSwitch(SceneId::OriginalFactory, EntrySide::Right);
     }
     character.position.rx() = std::max<qreal>(playableLeft_, std::min(playableRight_ - actorWidth_, character.position.x()));
@@ -498,16 +582,61 @@ void GameWorldViewModel::updatePhysics(CharacterObject& character, int deltaMs) 
     resolveTerrainCollision(character);
 
     if (character.state != QStringLiteral("attack") && character.state != QStringLiteral("roll") && character.state != QStringLiteral("hit") && character.state != QStringLiteral("skill")) {
+        const int movingFrameCount = character.animationFamily == QStringLiteral("small_bee") ? 4 : 8;
         if (character.velocity.y() < -0.1) {
-            setCharacterState(character, QStringLiteral("jump"), 8, 70);
+            setCharacterState(character, QStringLiteral("jump"), movingFrameCount, 70);
         } else if (character.velocity.y() > 0.1) {
-            setCharacterState(character, QStringLiteral("fall"), 8, 70);
+            setCharacterState(character, QStringLiteral("fall"), movingFrameCount, 70);
         } else if (character.moveDirection != 0) {
-            setCharacterState(character, QStringLiteral("run"), 8, 90);
+            setCharacterState(character, QStringLiteral("run"), movingFrameCount, 90);
         } else {
-            setCharacterState(character, QStringLiteral("idle"), 1, 90);
+            setCharacterState(character, QStringLiteral("idle"), character.animationFamily == QStringLiteral("small_bee") ? 4 : 1, 90);
         }
     }
+}
+
+void GameWorldViewModel::updateNpcLogic(CharacterObject& character, int deltaMs) {
+    if (character.attackCooldownRemainingMs > 0) {
+        character.attackCooldownRemainingMs = std::max(0, character.attackCooldownRemainingMs - deltaMs);
+    }
+
+    auto* p = player();
+    if (!p || !p->alive || character.state == QStringLiteral("hit")) {
+        character.moveDirection = 0;
+        character.velocity.setX(0);
+        return;
+    }
+
+    const qreal playerCenterX = p->position.x() + actorWidth_ / 2.0;
+    const qreal npcCenterX = character.position.x() + actorWidth_ / 2.0;
+    const qreal dx = playerCenterX - npcCenterX;
+    const qreal distance = std::abs(dx);
+    if (distance > character.detectionRange) {
+        character.moveDirection = 0;
+        character.velocity.setX(0);
+        return;
+    }
+
+    character.facingLeft = dx < 0;
+    if (character.state == QStringLiteral("attack")) {
+        character.moveDirection = 0;
+        character.velocity.setX(0);
+        return;
+    }
+
+    if (distance <= character.attackRange) {
+        character.moveDirection = 0;
+        character.velocity.setX(0);
+        if (character.attackCooldownRemainingMs == 0) {
+            beginAttack(character, character.facingLeft ? QStringLiteral("left") : QStringLiteral("right"), 4, 70, 280);
+            character.attackCooldownRemainingMs = character.attackCooldownMs;
+            emit soundRequested(QStringLiteral("enemy_dash"));
+        }
+        return;
+    }
+
+    character.moveDirection = dx < 0 ? -1 : 1;
+    character.velocity.setX(character.moveDirection * character.npcMoveSpeed);
 }
 
 void GameWorldViewModel::updateCollisionBoxes(CharacterObject& character) {
@@ -519,7 +648,7 @@ void GameWorldViewModel::updateCollisionBoxes(CharacterObject& character) {
 
     character.hurtbox = CollisionBox{QRectF(character.position.x() + hurtOffsetX, character.position.y() + hurtOffsetY, hurtWidth, hurtHeight), character.alive};
 
-    if (character.kind != QStringLiteral("player") || (character.state != QStringLiteral("attack") && character.state != QStringLiteral("skill"))) {
+    if (character.state != QStringLiteral("attack") && character.state != QStringLiteral("skill")) {
         character.attackBox = CollisionBox{QRectF(), false};
         return;
     }
@@ -529,19 +658,48 @@ void GameWorldViewModel::updateCollisionBoxes(CharacterObject& character) {
     qreal offsetX = attackOffsetLeftX_;
     qreal offsetY = attackOffsetLeftY_;
 
-    if (character.attackDirection == QStringLiteral("right")) {
-        offsetX = attackOffsetRightX_;
-        offsetY = attackOffsetRightY_;
-    } else if (character.attackDirection == QStringLiteral("up")) {
-        boxWidth = attackBoxHeight_;
-        boxHeight = attackBoxWidth_;
-        offsetX = attackOffsetUpX_;
-        offsetY = attackOffsetUpY_;
-    } else if (character.attackDirection == QStringLiteral("down")) {
-        boxWidth = attackBoxHeight_;
-        boxHeight = attackBoxWidth_;
-        offsetX = attackOffsetDownX_;
-        offsetY = attackOffsetDownY_;
+    if (character.attackDirection == QStringLiteral("burst")) {
+        offsetX = (actorWidth_ - burstBoxWidth_) / 2;
+        offsetY = (actorHeight_ - burstBoxHeight_) / 2;
+        boxWidth = burstBoxWidth_;
+        boxHeight = burstBoxHeight_;
+    } else if (character.rollAttack) {
+        if (character.attackDirection == QStringLiteral("right")) {
+            offsetX = attackOffsetRightX_;
+            offsetY = attackOffsetRightY_ + (attackBoxHeight_ - rollAttackBoxHeight_) / 2;
+            boxWidth = rollAttackBoxWidth_;
+            boxHeight = rollAttackBoxHeight_;
+        } else if (character.attackDirection == QStringLiteral("up")) {
+            boxWidth = rollAttackBoxHeight_;
+            boxHeight = rollAttackBoxWidth_;
+            offsetX = attackOffsetUpX_ + (attackBoxHeight_ - rollAttackBoxHeight_) / 2;
+            offsetY = attackOffsetUpY_ - (rollAttackBoxWidth_ - attackBoxWidth_);
+        } else if (character.attackDirection == QStringLiteral("down")) {
+            boxWidth = rollAttackBoxHeight_;
+            boxHeight = rollAttackBoxWidth_;
+            offsetX = attackOffsetDownX_ + (attackBoxHeight_ - rollAttackBoxHeight_) / 2;
+            offsetY = attackOffsetDownY_;
+        } else {
+            offsetX = attackOffsetLeftX_ - (rollAttackBoxWidth_ - attackBoxWidth_);
+            offsetY = attackOffsetLeftY_ + (attackBoxHeight_ - rollAttackBoxHeight_) / 2;
+            boxWidth = rollAttackBoxWidth_;
+            boxHeight = rollAttackBoxHeight_;
+        }
+    } else {
+        if (character.attackDirection == QStringLiteral("right")) {
+            offsetX = attackOffsetRightX_;
+            offsetY = attackOffsetRightY_;
+        } else if (character.attackDirection == QStringLiteral("up")) {
+            boxWidth = attackBoxHeight_;
+            boxHeight = attackBoxWidth_;
+            offsetX = attackOffsetUpX_;
+            offsetY = attackOffsetUpY_;
+        } else if (character.attackDirection == QStringLiteral("down")) {
+            boxWidth = attackBoxHeight_;
+            boxHeight = attackBoxWidth_;
+            offsetX = attackOffsetDownX_;
+            offsetY = attackOffsetDownY_;
+        }
     }
 
     character.attackBox = CollisionBox{QRectF(character.position.x() + offsetX, character.position.y() + offsetY, boxWidth, boxHeight), true};
@@ -602,7 +760,7 @@ void GameWorldViewModel::setCharacterState(CharacterObject& character, const QSt
         return;
     }
     character.state = state;
-    character.animationKey = animationForState(state);
+    character.animationKey = animationForFamilyState(character.animationFamily, state);
     character.frameIndex = 0;
     character.frameCount = std::max(1, frameCount);
     character.frameIntervalMs = frameIntervalMs;
@@ -611,30 +769,67 @@ void GameWorldViewModel::setCharacterState(CharacterObject& character, const QSt
     character.actionDurationMs = durationMs;
 }
 
-void GameWorldViewModel::checkPlayerAttackHits() {
-    auto* p = player();
-    if (!p || !canUseBox(p->attackBox)) {
+void GameWorldViewModel::beginAttack(CharacterObject& attacker, const QString& direction, int frameCount, int frameIntervalMs, int durationMs) {
+    QString resolved = direction;
+    if (resolved.isEmpty()) {
+        resolved = attacker.facingLeft ? QStringLiteral("left") : QStringLiteral("right");
+    }
+
+    attacker.attackDirection = resolved;
+    attacker.attackSerial += 1;
+    attacker.attackBox.active = true;
+    setCharacterState(attacker, QStringLiteral("attack"), frameCount, frameIntervalMs, durationMs);
+}
+
+void GameWorldViewModel::checkAttackHits(CharacterObject& attacker) {
+    if (!attacker.alive || !canUseBox(attacker.attackBox)) {
         return;
     }
-    const QString token = QStringLiteral("player-attack-%1").arg(p->attackSerial);
+
+    const QString token = QStringLiteral("%1-attack-%2").arg(attacker.id).arg(attacker.attackSerial);
     if (resolvedAttackTokens_.contains(token)) {
         return;
     }
 
-    for (auto it = characters_.begin(); it != characters_.end(); ++it) {
-        auto& target = it.value();
-        if (target.id == p->id || target.kind != QStringLiteral("enemy") || !target.alive || !canUseBox(target.hurtbox)) {
-            continue;
+    if (attacker.kind == QStringLiteral("player")) {
+        for (auto it = characters_.begin(); it != characters_.end(); ++it) {
+            auto& target = it.value();
+            if (target.id == attacker.id || target.kind != QStringLiteral("enemy") || !target.alive || !canUseBox(target.hurtbox)) {
+                continue;
+            }
+            if (!attacker.attackBox.rect.intersects(target.hurtbox.rect)) {
+                continue;
+            }
+
+            resolvedAttackTokens_.insert(token);
+            target.hp = std::max(0, target.hp - attacker.attackDamage);
+            ++damageCount_;
+            if (target.hp == 0) {
+                target.alive = false;
+                setCharacterState(target, QStringLiteral("dead"), 1, 90);
+            } else {
+                setCharacterState(target, QStringLiteral("hit"), target.animationFamily == QStringLiteral("small_bee") ? 4 : 1, 90, 220);
+            }
+            emit damageCountChanged();
+            emit soundRequested(QStringLiteral("enemy.hurt.1"));
+            break;
         }
-        if (!p->attackBox.rect.intersects(target.hurtbox.rect)) {
-            continue;
-        }
-        resolvedAttackTokens_.insert(token);
-        ++damageCount_;
-        setCharacterState(target, QStringLiteral("hit"), 1, 90, 180);
-        emit damageCountChanged();
-        emit soundRequested(QStringLiteral("enemy.hurt.1"));
-        break;
+        return;
+    }
+
+    auto* p = player();
+    if (!p || !p->alive || !canUseBox(p->hurtbox) || !attacker.attackBox.rect.intersects(p->hurtbox.rect)) {
+        return;
+    }
+
+    resolvedAttackTokens_.insert(token);
+    playerTakeHit(attacker.attackDamage);
+}
+
+void GameWorldViewModel::checkPlayerAttackHits() {
+    auto* p = player();
+    if (p) {
+        checkAttackHits(*p);
     }
 }
 
@@ -690,6 +885,7 @@ QVariantMap GameWorldViewModel::characterToVariant(const CharacterObject& charac
     item["frameIndex"] = character.frameIndex;
     item["frameCount"] = character.frameCount;
     item["attackDirection"] = character.attackDirection;
+    item["attackVfxKey"] = character.attackVfxKey;
     item["attackVfxSize"] = std::max(character.attackBox.rect.width(), character.attackBox.rect.height());
     item["hurtbox"] = boxToVariant(character.hurtbox);
     item["attackBox"] = boxToVariant(character.attackBox);
