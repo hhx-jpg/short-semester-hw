@@ -1,0 +1,59 @@
+# Build outputs
+build/
+build-*/
+cmake-build-*/
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+compile_commands.json
+*.cmake
+!CMakeLists.txt
+
+# Qt generated files
+*_autogen/
+.qmake.stash
+*.pro.user
+*.qrc.depends
+*.rcc
+
+# Binaries and libraries
+*.exe
+*.dll
+*.so
+*.dylib
+*.a
+*.lib
+*.o
+*.obj
+*.pdb
+
+# IDE/editor settings
+.vscode/
+.idea/
+*.user
+*.suo
+*.sln.docstates
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs and temporary files
+*.log
+*.tmp
+*.temp
+*.bak
+*.swp
+*.swo
+~$*
+
+# Python/cache tooling
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Local Claude/harness state
+.claude/
+
+# Keep source, config, resources, qml, and vendored headers tracked
