@@ -6,6 +6,14 @@ namespace {
 std::string keyOf(const QString& key) {
     return key.toStdString();
 }
+
+QStringList numberedKeys(const QString& prefix, int count) {
+    QStringList keys;
+    for (int index = 1; index <= count; ++index) {
+        keys.push_back(QStringLiteral("%1.%2").arg(prefix).arg(index));
+    }
+    return keys;
+}
 } // namespace
 
 ResourceManager::ResourceManager(QObject* parent)
@@ -78,30 +86,37 @@ int ResourceManager::spriteSheetFrameCount(const QString& animationKey) const {
 void ResourceManager::registerDefaults() {
     registerImage(QStringLiteral("scene.factory.background"), QStringLiteral("qrc:/resources/background.png"));
     registerImage(QStringLiteral("scene.factory.background2"), QStringLiteral("qrc:/resources/background2.png"));
+
     registerImage(QStringLiteral("mob.small_bee.fly.sheet"), QStringLiteral("qrc:/resources/Mob/Small Bee/Fly/Fly-Sheet.png"));
     registerImage(QStringLiteral("mob.small_bee.attack.sheet"), QStringLiteral("qrc:/resources/Mob/Small Bee/Attack/Attack-Sheet.png"));
     registerImage(QStringLiteral("mob.small_bee.hit.sheet"), QStringLiteral("qrc:/resources/Mob/Small Bee/Hit/Hit-Sheet.png"));
     registerImage(QStringLiteral("mob.small_bee.vfx.attack.sheet"), QStringLiteral("qrc:/resources/Mob/Small Bee/Hit/hit.png"));
+    registerImage(QStringLiteral("mob.small_bee.vfx.attack_left.sheet"), QStringLiteral("qrc:/resources/Mob/Small Bee/Hit/hit_left.png"));
     registerSpriteSheet(QStringLiteral("mob.small_bee.fly"), QStringLiteral("mob.small_bee.fly.sheet"), 64, 64, 4);
     registerSpriteSheet(QStringLiteral("mob.small_bee.attack"), QStringLiteral("mob.small_bee.attack.sheet"), 64, 64, 4);
     registerSpriteSheet(QStringLiteral("mob.small_bee.hit"), QStringLiteral("mob.small_bee.hit.sheet"), 64, 64, 4);
-    registerSpriteSheet(QStringLiteral("mob.small_bee.vfx.attack"), QStringLiteral("mob.small_bee.vfx.attack.sheet"), 1024, 1024, 4);
+    registerSpriteSheet(QStringLiteral("mob.small_bee.vfx.attack_right"), QStringLiteral("mob.small_bee.vfx.attack.sheet"), 1024, 1024, 4);
+    registerSpriteSheet(QStringLiteral("mob.small_bee.vfx.attack_left"), QStringLiteral("mob.small_bee.vfx.attack_left.sheet"), 1024, 1024, 4);
+    const auto registerPlayerFrames = [this](const QString& animationKey, const QString& folder, int count) {
+        for (int index = 1; index <= count; ++index) {
+            const QString key = QStringLiteral("%1.%2").arg(animationKey).arg(index);
+            registerImage(key, QStringLiteral("qrc:/resources/player/%1/%2.png").arg(folder).arg(index));
+        }
+        registerAnimation(animationKey, numberedKeys(animationKey, count));
+    };
 
-    for (int i = 1; i <= 8; ++i) {
-        registerImage(QStringLiteral("enemy.run.%1").arg(i), QStringLiteral("qrc:/resources/enemy/run/%1.png").arg(i));
-        registerImage(QStringLiteral("enemy.jump.%1").arg(i), QStringLiteral("qrc:/resources/enemy/jump/%1.png").arg(i));
-    }
+    registerPlayerFrames(QStringLiteral("player.idle"), QStringLiteral("idle"), 6);
+    registerPlayerFrames(QStringLiteral("player.run"), QStringLiteral("run"), 8);
+    registerPlayerFrames(QStringLiteral("player.jump"), QStringLiteral("jump"), 8);
+    registerPlayerFrames(QStringLiteral("player.fall"), QStringLiteral("fall"), 4);
+    registerPlayerFrames(QStringLiteral("player.attack"), QStringLiteral("throw_barb"), 8);
+    registerPlayerFrames(QStringLiteral("player.hit"), QStringLiteral("hit"), 4);
+    registerPlayerFrames(QStringLiteral("player.charge"), QStringLiteral("squat"), 10);
+    registerPlayerFrames(QStringLiteral("player.vfx.burst"), QStringLiteral("silk"), 9);
+    registerPlayerFrames(QStringLiteral("player.dash"), QStringLiteral("dash_on_floor"), 2);
 
-    registerImage(QStringLiteral("player.idle"), QStringLiteral("qrc:/resources/player/idle.png"));
-    registerImage(QStringLiteral("player.run"), QStringLiteral("qrc:/resources/player/run.png"));
-    registerImage(QStringLiteral("player.jump"), QStringLiteral("qrc:/resources/player/jump.png"));
-    registerImage(QStringLiteral("player.fall"), QStringLiteral("qrc:/resources/player/fall.png"));
-    registerImage(QStringLiteral("player.attack"), QStringLiteral("qrc:/resources/player/attack.png"));
-    registerImage(QStringLiteral("player.roll"), QStringLiteral("qrc:/resources/player/roll.png"));
-    registerImage(QStringLiteral("player.dead"), QStringLiteral("qrc:/resources/player/dead.png"));
-    for (int i = 1; i <= 4; ++i) {
-        registerImage(QStringLiteral("player.hit.%1").arg(i), QStringLiteral("qrc:/resources/player/hit/%1.png").arg(i));
-    }
+    registerImage(QStringLiteral("player.dead"), QStringLiteral("qrc:/resources/player/sprite/sprite_sprite.png"));
+    registerAnimation(QStringLiteral("player.dead"), QStringList{QStringLiteral("player.dead")});
 
     registerImage(QStringLiteral("player.vfx.attack.down"), QStringLiteral("qrc:/resources/player/vfx_attack_down.png"));
     registerImage(QStringLiteral("player.vfx.attack.left"), QStringLiteral("qrc:/resources/player/vfx_attack_left.png"));
@@ -109,28 +124,10 @@ void ResourceManager::registerDefaults() {
     registerImage(QStringLiteral("player.vfx.attack.up"), QStringLiteral("qrc:/resources/player/vfx_attack_up.png"));
     registerImage(QStringLiteral("player.vfx.jump"), QStringLiteral("qrc:/resources/player/vfx_jump.png"));
     registerImage(QStringLiteral("player.vfx.land"), QStringLiteral("qrc:/resources/player/vfx_land.png"));
-
-    QStringList runFrames;
-    QStringList jumpFrames;
-    for (int i = 1; i <= 8; ++i) {
-        runFrames.push_back(QStringLiteral("enemy.run.%1").arg(i));
-        jumpFrames.push_back(QStringLiteral("enemy.jump.%1").arg(i));
-    }
-    registerAnimation(QStringLiteral("enemy.run"), runFrames);
-    registerAnimation(QStringLiteral("enemy.jump"), jumpFrames);
-    registerAnimation(QStringLiteral("enemy.idle"), QStringList{QStringLiteral("enemy.run.1")});
-    registerAnimation(QStringLiteral("enemy.fall"), jumpFrames);
-    registerAnimation(QStringLiteral("enemy.roll"), runFrames);
-    registerAnimation(QStringLiteral("enemy.attack"), runFrames);
-    registerAnimation(QStringLiteral("enemy.hit"), QStringList{QStringLiteral("enemy.run.1")});
-    registerAnimation(QStringLiteral("enemy.skill"), runFrames);
-    QStringList hitFrames;
-    for (int i = 1; i <= 4; ++i) {
-        hitFrames.push_back(QStringLiteral("player.hit.%1").arg(i));
-    }
-    registerAnimation(QStringLiteral("player.hit"), hitFrames);
-
-    registerAnimation(QStringLiteral("enemy.dead"), QStringList{QStringLiteral("enemy.run.1")});
+    registerSpriteSheet(QStringLiteral("player.vfx.attack.down"), QStringLiteral("player.vfx.attack.down"), 324, 324, 5);
+    registerSpriteSheet(QStringLiteral("player.vfx.attack.left"), QStringLiteral("player.vfx.attack.left"), 324, 324, 5);
+    registerSpriteSheet(QStringLiteral("player.vfx.attack.right"), QStringLiteral("player.vfx.attack.right"), 324, 324, 5);
+    registerSpriteSheet(QStringLiteral("player.vfx.attack.up"), QStringLiteral("player.vfx.attack.up"), 324, 324, 5);
 
     registerAudio(QStringLiteral("bgm.factory"), QStringLiteral("qrc:/resources/audio/bgm.mp3"));
     registerAudio(QStringLiteral("player.attack.1"), QStringLiteral("qrc:/resources/audio/player_attack_1.mp3"));

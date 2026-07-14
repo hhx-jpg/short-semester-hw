@@ -111,6 +111,12 @@ struct WorldEvents {
     bool viewportChanged = false;
 };
 
+struct CombatResult {
+    int damageCountDelta = 0;
+    QStringList sounds;
+    bool playerStatsChanged = false;
+};
+
 struct SceneSwitchRequest {
     bool pending = false;
     SceneId scene = SceneId::OriginalFactory;

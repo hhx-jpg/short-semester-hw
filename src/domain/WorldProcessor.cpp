@@ -1,0 +1,58 @@
+#include "domain/WorldProcessor.h"
+
+#include "domain/CharacterSystem.h"
+#include "domain/CollisionSystem.h"
+#include "domain/CombatSystem.h"
+#include "domain/NpcSystem.h"
+#include "domain/PhysicsSystem.h"
+
+namespace skybound {
+namespace {
+CharacterObject* player(QHash<QString, CharacterObject>& characters) {
+    auto it = characters.find(QStringLiteral("player"));
+    return it == characters.end() ? nullptr : &it.value();
+}
+} // namespace
+
+SceneSwitchRequest WorldProcessor::advanceActors(
+    QHash<QString, CharacterObject>& characters,
+    int deltaMs,
+    SceneId currentScene,
+    qreal playableLeft,
+    qreal playableRight,
+    const QList<TerrainPiece>& terrain,
+    const WorldTuning& tuning,
+    bool chargePressed,
+    WorldEvents& events) {
+    SceneSwitchRequest sceneSwitch;
+    for (auto it = characters.begin(); it != characters.end(); ++it) {
+        auto& character = it.value();
+        if (!character.alive) {
+            continue;
+        }
+
+        if (character.aiControlled) {
+            NpcSystem::updateNpc(character, player(characters), deltaMs, tuning, events);
+        }
+
+        CharacterSystem::updateAnimation(character, deltaMs);
+        PhysicsSystem::updateCharacterPhysics(character, deltaMs, currentScene, playableLeft, playableRight, terrain, tuning, chargePressed, sceneSwitch);
+        CollisionSystem::updateCollisionBoxes(character, tuning);
+    }
+    return sceneSwitch;
+}
+
+CombatResult WorldProcessor::resolveCombat(
+    QHash<QString, CharacterObject>& characters,
+    QSet<QString>& resolvedAttackTokens) {
+    CombatResult combined;
+    for (auto it = characters.begin(); it != characters.end(); ++it) {
+        const CombatResult result = CombatSystem::checkAttackHits(it.value(), characters, resolvedAttackTokens);
+        combined.damageCountDelta += result.damageCountDelta;
+        combined.sounds.append(result.sounds);
+        combined.playerStatsChanged = combined.playerStatsChanged || result.playerStatsChanged;
+    }
+    return combined;
+}
+
+} // namespace skybound

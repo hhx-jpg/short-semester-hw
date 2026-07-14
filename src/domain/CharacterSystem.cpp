@@ -15,6 +15,34 @@ QString CharacterSystem::animationForFamilyState(const QString& family, const QS
         return QStringLiteral("mob.small_bee.fly");
     }
 
+    if (family == QStringLiteral("player")) {
+        if (state == QStringLiteral("jump")) {
+            return QStringLiteral("player.jump");
+        }
+        if (state == QStringLiteral("fall")) {
+            return QStringLiteral("player.fall");
+        }
+        if (state == QStringLiteral("run")) {
+            return QStringLiteral("player.run");
+        }
+        if (state == QStringLiteral("roll")) {
+            return QStringLiteral("player.dash");
+        }
+        if (state == QStringLiteral("attack")) {
+            return QStringLiteral("player.attack");
+        }
+        if (state == QStringLiteral("hit")) {
+            return QStringLiteral("player.hit");
+        }
+        if (state == QStringLiteral("charge") || state == QStringLiteral("skill")) {
+            return QStringLiteral("player.charge");
+        }
+        if (state == QStringLiteral("dead")) {
+            return QStringLiteral("player.dead");
+        }
+        return QStringLiteral("player.idle");
+    }
+
     if (state == QStringLiteral("jump") || state == QStringLiteral("fall")) {
         return QStringLiteral("enemy.jump");
     }
@@ -73,6 +101,9 @@ void CharacterSystem::updateAnimation(CharacterObject& character, int deltaMs) {
     character.actionElapsedMs = 0;
     character.attackBox.active = false;
     character.rollAttack = false;
+    if (character.kind == QStringLiteral("player")) {
+        character.attackVfxKey.clear();
+    }
 
     const bool airborne = character.velocity.y() != 0;
     const int movingFrameCount = character.animationFamily == QStringLiteral("small_bee") ? 4 : 8;

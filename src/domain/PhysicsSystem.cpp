@@ -23,7 +23,8 @@ void PhysicsSystem::updateCharacterPhysics(
     const bool isPlayer = character.kind == QStringLiteral("player");
     const qreal stepScale = deltaMs / static_cast<qreal>(kFrameMs);
 
-    if (isPlayer && ((character.state == QStringLiteral("skill") && character.attackDirection == QStringLiteral("burst")) || chargePressed)) {
+    if (isPlayer && (character.state == QStringLiteral("charge") || (character.state == QStringLiteral("skill") && character.attackDirection == QStringLiteral("burst")) || chargePressed)) {
+        character.moveDirection = 0;
         character.velocity.setX(0);
     } else if (character.state == QStringLiteral("roll")) {
         character.position.rx() += character.velocity.x() * stepScale;
@@ -46,7 +47,7 @@ void PhysicsSystem::updateCharacterPhysics(
 
     CollisionSystem::resolveTerrainCollision(character, terrain, tuning);
 
-    if (character.state != QStringLiteral("attack") && character.state != QStringLiteral("roll") && character.state != QStringLiteral("hit") && character.state != QStringLiteral("skill")) {
+    if (character.state != QStringLiteral("attack") && character.state != QStringLiteral("roll") && character.state != QStringLiteral("hit") && character.state != QStringLiteral("skill") && character.state != QStringLiteral("charge")) {
         const int movingFrameCount = character.animationFamily == QStringLiteral("small_bee") ? 4 : 8;
         if (character.velocity.y() < -0.1) {
             CharacterSystem::setState(character, QStringLiteral("jump"), movingFrameCount, 70);

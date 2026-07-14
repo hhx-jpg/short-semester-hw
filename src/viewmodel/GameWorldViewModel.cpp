@@ -4,9 +4,9 @@
 #include "domain/CharacterSystem.h"
 #include "domain/CollisionSystem.h"
 #include "domain/CombatSystem.h"
-#include "domain/NpcSystem.h"
-#include "domain/PhysicsSystem.h"
 #include "domain/SceneBuilder.h"
+#include "domain/WorldProcessor.h"
+#include "service/ResourceManager.h"
 
 #include <QVariantMap>
 #include <algorithm>
@@ -18,8 +18,9 @@ namespace {
 constexpr int kFrameMs = 16;
 } // namespace
 
-GameWorldViewModel::GameWorldViewModel(QObject* parent)
-    : QObject(parent) {
+GameWorldViewModel::GameWorldViewModel(const ResourceManager& resources, QObject* parent)
+    : QObject(parent)
+    , resources_(resources) {
     initializeWorld();
 }
 
@@ -36,7 +37,7 @@ QVariantList GameWorldViewModel::mapLayers() const {
     for (const auto& layer : mapLayers_) {
         QVariantMap item;
         item["id"] = layer.id;
-        item["imageKey"] = layer.imageKey;
+        item["source"] = resources_.image(layer.imageKey);
         item["x"] = layer.rect.x();
         item["y"] = layer.rect.y();
         item["width"] = layer.rect.width();
@@ -144,10 +145,13 @@ void GameWorldViewModel::reset() {
     damageCount_ = 0;
     chargePressed_ = false;
     chargeProgress_ = 0.0;
+    aimingUp_ = false;
+    aimingDown_ = false;
     resolvedAttackTokens_.clear();
     initializeWorld();
     emit damageCountChanged();
     emit chargeProgressChanged();
+    notifyWorldDataChanged(true);
     emit worldChanged();
 }
 
@@ -160,44 +164,36 @@ void GameWorldViewModel::setViewport(qreal width, qreal height) {
     viewportHeight_ = height;
     updateMapGeometry();
     emit viewportChanged();
+    notifyWorldDataChanged(true);
     emit worldChanged();
 }
 
 void GameWorldViewModel::tick(int deltaMs) {
     const int dt = deltaMs <= 0 ? kFrameMs : deltaMs;
     WorldEvents events;
-    SceneSwitchRequest sceneSwitch;
 
     updateCharge(dt, events);
+    const SceneSwitchRequest sceneSwitch = WorldProcessor::advanceActors(
+        characters_, dt, currentScene_, playableLeft_, playableRight_, terrain_, tuning_, chargePressed_, events);
 
-    for (auto it = characters_.begin(); it != characters_.end(); ++it) {
-        auto& character = it.value();
-        if (!character.alive) {
-            continue;
-        }
-
-        if (character.aiControlled) {
-            NpcSystem::updateNpc(character, player(), dt, tuning_, events);
-        }
-
-        CharacterSystem::updateAnimation(character, dt);
-        PhysicsSystem::updateCharacterPhysics(character, dt, currentScene_, playableLeft_, playableRight_, terrain_, tuning_, chargePressed_, sceneSwitch);
-        CollisionSystem::updateCollisionBoxes(character, tuning_);
-    }
-
+    const bool sceneChanged = sceneSwitch.pending;
     applySceneSwitch(sceneSwitch);
-
-    for (auto it = characters_.begin(); it != characters_.end(); ++it) {
-        CombatSystem::checkAttackHits(it.value(), characters_, resolvedAttackTokens_, damageCount_, events);
-    }
+    applyCombatResult(WorldProcessor::resolveCombat(characters_, resolvedAttackTokens_), events);
 
     emitEvents(events);
+    notifyWorldDataChanged(sceneChanged);
     emit worldChanged();
 }
 
 void GameWorldViewModel::playerRun(int direction) {
     auto* p = player();
     if (!p || !p->alive) {
+        return;
+    }
+    if (chargePressed_ || p->state == QStringLiteral("charge")) {
+        p->moveDirection = 0;
+        p->velocity.setX(0);
+        emit charactersChanged();
         return;
     }
 
@@ -211,7 +207,7 @@ void GameWorldViewModel::playerRun(int direction) {
     if ((p->state == QStringLiteral("idle") || p->state == QStringLiteral("run")) && p->moveDirection != 0) {
         CharacterSystem::setState(*p, QStringLiteral("run"), 8, 90);
     }
-    emit worldChanged();
+    emit charactersChanged();
 }
 
 void GameWorldViewModel::playerStopRun(int direction) {
@@ -226,12 +222,12 @@ void GameWorldViewModel::playerStopRun(int direction) {
     if (p->state == QStringLiteral("run") && p->moveDirection == 0) {
         CharacterSystem::setState(*p, QStringLiteral("idle"), 1, 90);
     }
-    emit worldChanged();
+    emit charactersChanged();
 }
 
 void GameWorldViewModel::playerJump() {
     auto* p = player();
-    if (!p || !p->alive) {
+    if (!p || !p->alive || chargePressed_ || p->state == QStringLiteral("charge")) {
         return;
     }
 
@@ -243,19 +239,20 @@ void GameWorldViewModel::playerJump() {
     p->velocity.setY(tuning_.jumpVelocity);
     CharacterSystem::setState(*p, QStringLiteral("jump"), 8, 70);
     emit soundRequested(QStringLiteral("player.jump"));
-    emit worldChanged();
+    emit charactersChanged();
 }
 
 void GameWorldViewModel::playerRoll() {
     auto* p = player();
-    if (!p || !p->alive || p->state == QStringLiteral("roll")) {
+    if (!p || !p->alive || chargePressed_ || p->state == QStringLiteral("charge") || p->state == QStringLiteral("roll")) {
         return;
     }
 
+    p->attackVfxKey.clear();
     p->velocity.setX((p->facingLeft ? -1 : 1) * tuning_.moveSpeed * 1.8);
-    CharacterSystem::setState(*p, QStringLiteral("roll"), 8, 55, 360);
+    CharacterSystem::setState(*p, QStringLiteral("roll"), 2, 70, 220);
     emit soundRequested(QStringLiteral("player.roll"));
-    emit worldChanged();
+    emit charactersChanged();
 }
 
 void GameWorldViewModel::playerAttack(const QString& direction) {
@@ -266,12 +263,13 @@ void GameWorldViewModel::playerAttack(const QString& direction) {
 
     const bool isRollAttack = p->state == QStringLiteral("roll");
     p->rollAttack = isRollAttack;
+    p->attackVfxKey.clear();
 
     QString resolved = direction;
     if (resolved.isEmpty()) {
         resolved = p->facingLeft ? QStringLiteral("left") : QStringLiteral("right");
     }
-    CharacterSystem::beginAttack(*p, resolved, isRollAttack ? 8 : 5, isRollAttack ? 65 : 55, isRollAttack ? 520 : 275);
+    CharacterSystem::beginAttack(*p, resolved, isRollAttack ? 8 : 8, isRollAttack ? 65 : 55, isRollAttack ? 520 : 440);
     if (isRollAttack) {
         p->state = QStringLiteral("skill");
         p->animationKey = CharacterSystem::animationForFamilyState(p->animationFamily, p->state);
@@ -279,10 +277,10 @@ void GameWorldViewModel::playerAttack(const QString& direction) {
     CollisionSystem::updateCollisionBoxes(*p, tuning_);
 
     WorldEvents events;
-    CombatSystem::checkAttackHits(*p, characters_, resolvedAttackTokens_, damageCount_, events);
+    applyCombatResult(CombatSystem::checkAttackHits(*p, characters_, resolvedAttackTokens_), events);
     events.sounds.push_back(isRollAttack ? QStringLiteral("player.attack.2") : QStringLiteral("player.attack.1"));
     emitEvents(events);
-    emit worldChanged();
+    emit charactersChanged();
 }
 
 void GameWorldViewModel::playerTakeHit(int damage) {
@@ -291,20 +289,10 @@ void GameWorldViewModel::playerTakeHit(int damage) {
         return;
     }
 
-    p->hp = std::max(0, p->hp - std::max(0, damage));
-    if (p->hp == 0) {
-        p->alive = false;
-        CharacterSystem::setState(*p, QStringLiteral("dead"), 1, 90);
-        emit soundRequested(QStringLiteral("player.dead"));
-    } else {
-        if (p->state == QStringLiteral("hit")) {
-            p->state = QString();
-            p->actionDurationMs = 0;
-        }
-        CharacterSystem::setState(*p, QStringLiteral("hit"), 4, 90, 360);
-        emit soundRequested(QStringLiteral("player.hurt"));
-    }
-    emit worldChanged();
+    WorldEvents events;
+    applyCombatResult(CombatSystem::applyDamageToPlayer(*p, damage), events);
+    emitEvents(events);
+    emit charactersChanged();
 }
 
 void GameWorldViewModel::playerCastSkill(const QString& skillId) {
@@ -318,21 +306,64 @@ void GameWorldViewModel::playerCastSkill(const QString& skillId) {
     p->animationKey = CharacterSystem::animationForFamilyState(p->animationFamily, p->state);
     emit soundRequested(QStringLiteral("player.attack.2"));
     Q_UNUSED(skillId);
-    emit worldChanged();
+    emit charactersChanged();
+}
+
+void GameWorldViewModel::setAimUpPressed(bool pressed) {
+    aimingUp_ = pressed;
+}
+
+void GameWorldViewModel::setAimDownPressed(bool pressed) {
+    aimingDown_ = pressed;
 }
 
 void GameWorldViewModel::setChargePressed(bool pressed) {
-    chargePressed_ = pressed;
+    auto* p = player();
     if (pressed) {
-        if (auto* p = player()) {
-            p->moveDirection = 0;
-            p->velocity.setX(0);
+        if (!p || !p->alive || p->state == QStringLiteral("attack") || p->state == QStringLiteral("roll") || p->state == QStringLiteral("hit") || p->state == QStringLiteral("skill")) {
+            chargePressed_ = false;
+            return;
         }
+
+        chargePressed_ = true;
+        p->moveDirection = 0;
+        p->velocity.setX(0);
+        p->rollAttack = false;
+        CharacterSystem::setState(*p, QStringLiteral("charge"), 10, 80);
+        emit charactersChanged();
         return;
     }
 
+    chargePressed_ = false;
     chargeProgress_ = 0.0;
+    if (p && p->alive && p->state == QStringLiteral("charge")) {
+        if (p->velocity.y() < -0.1) {
+            CharacterSystem::setState(*p, QStringLiteral("jump"), 10, 70);
+        } else if (p->velocity.y() > 0.1) {
+            CharacterSystem::setState(*p, QStringLiteral("fall"), 10, 70);
+        } else {
+            CharacterSystem::setState(*p, QStringLiteral("idle"), 10, 90);
+        }
+    }
     emit chargeProgressChanged();
+    emit charactersChanged();
+}
+
+void GameWorldViewModel::releaseAttack() {
+    const bool wasCharged = chargeProgress_ >= 1.0;
+    setChargePressed(false);
+    if (wasCharged) {
+        playerBurstAttack();
+        return;
+    }
+
+    if (aimingUp_) {
+        playerAttack(QStringLiteral("up"));
+    } else if (aimingDown_) {
+        playerAttack(QStringLiteral("down"));
+    } else {
+        playerAttack(QString{});
+    }
 }
 
 void GameWorldViewModel::playerBurstAttack() {
@@ -344,16 +375,17 @@ void GameWorldViewModel::playerBurstAttack() {
     p->moveDirection = 0;
     p->velocity.setX(0);
     p->rollAttack = false;
-    CharacterSystem::beginAttack(*p, QStringLiteral("burst"), 8, 65, 400);
+    p->attackVfxKey = QStringLiteral("player.vfx.burst");
+    CharacterSystem::beginAttack(*p, QStringLiteral("burst"), 9, 65, 585);
     p->state = QStringLiteral("skill");
     p->animationKey = CharacterSystem::animationForFamilyState(p->animationFamily, p->state);
     CollisionSystem::updateCollisionBoxes(*p, tuning_);
 
     WorldEvents events;
-    CombatSystem::checkAttackHits(*p, characters_, resolvedAttackTokens_, damageCount_, events);
+    applyCombatResult(CombatSystem::checkAttackHits(*p, characters_, resolvedAttackTokens_), events);
     events.sounds.push_back(QStringLiteral("player.attack.2"));
     emitEvents(events);
-    emit worldChanged();
+    emit charactersChanged();
 }
 
 void GameWorldViewModel::initializeWorld() {
@@ -419,7 +451,6 @@ void GameWorldViewModel::switchToScene(SceneId scene, EntrySide entrySide) {
     characters_.insert(bee.id, bee);
 
     emit viewportChanged();
-    emit worldChanged();
 }
 
 void GameWorldViewModel::applySceneSwitch(const SceneSwitchRequest& sceneSwitch) {
@@ -437,6 +468,17 @@ void GameWorldViewModel::updateCharge(int deltaMs, WorldEvents& events) {
     events.chargeProgressChanged = true;
 }
 
+void GameWorldViewModel::applyCombatResult(const CombatResult& result, WorldEvents& events) {
+    if (result.damageCountDelta != 0) {
+        damageCount_ += result.damageCountDelta;
+        events.damageCountChanged = true;
+    }
+    if (result.playerStatsChanged) {
+        emit playerStatsChanged();
+    }
+    events.sounds.append(result.sounds);
+}
+
 void GameWorldViewModel::emitEvents(const WorldEvents& events) {
     for (const auto& sound : events.sounds) {
         emit soundRequested(sound);
@@ -450,6 +492,29 @@ void GameWorldViewModel::emitEvents(const WorldEvents& events) {
     if (events.viewportChanged) {
         emit viewportChanged();
     }
+}
+
+void GameWorldViewModel::notifyWorldDataChanged(bool sceneChanged) {
+    emit charactersChanged();
+    emit debugBoxesChanged();
+    if (sceneChanged) {
+        emit mapLayersChanged();
+        emit terrainChanged();
+        emit currentSceneChanged();
+    }
+}
+
+QVariantMap GameWorldViewModel::animationPresentation(const QString& key, int frameIndex) const {
+    QVariantMap presentation;
+    const bool isSheet = resources_.isSpriteSheetAnimation(key);
+    const int frameCount = isSheet ? resources_.spriteSheetFrameCount(key) : resources_.animationFrameCount(key);
+    presentation["isSheet"] = isSheet;
+    presentation["source"] = isSheet ? resources_.spriteSheetImage(key) : resources_.animationFrame(key, frameIndex);
+    presentation["frameCount"] = frameCount;
+    presentation["frameIndex"] = frameCount > 0 ? std::clamp(frameIndex, 0, frameCount - 1) : 0;
+    presentation["frameWidth"] = isSheet ? resources_.spriteSheetFrameWidth(key) : 0;
+    presentation["frameHeight"] = isSheet ? resources_.spriteSheetFrameHeight(key) : 0;
+    return presentation;
 }
 
 CharacterObject* GameWorldViewModel::player() {
@@ -500,11 +565,27 @@ QVariantMap GameWorldViewModel::characterToVariant(const CharacterObject& charac
     item["facingLeft"] = character.facingLeft;
     item["alive"] = character.alive;
     item["state"] = character.state;
-    item["animationKey"] = character.animationKey;
+    const QVariantMap sprite = animationPresentation(character.animationKey, character.frameIndex);
+    const QString fallbackVfxKey = character.kind == QStringLiteral("enemy")
+        ? QStringLiteral("mob.small_bee.vfx.attack_%1").arg(character.attackDirection)
+        : QStringLiteral("player.vfx.attack.%1").arg(character.attackDirection);
+    const QString vfxKey = character.attackVfxKey.isEmpty() ? fallbackVfxKey : character.attackVfxKey;
+    const QVariantMap attackVfx = animationPresentation(vfxKey, character.frameIndex);
+    item["spriteSource"] = sprite.value("source");
+    item["spriteIsSheet"] = sprite.value("isSheet");
+    item["spriteFrameCount"] = sprite.value("frameCount");
+    item["spriteFrameIndex"] = sprite.value("frameIndex");
+    item["spriteFrameWidth"] = sprite.value("frameWidth");
+    item["spriteFrameHeight"] = sprite.value("frameHeight");
     item["frameIndex"] = character.frameIndex;
     item["frameCount"] = character.frameCount;
     item["attackDirection"] = character.attackDirection;
-    item["attackVfxKey"] = character.attackVfxKey;
+    item["vfxSource"] = attackVfx.value("source");
+    item["vfxIsSheet"] = attackVfx.value("isSheet");
+    item["vfxFrameCount"] = attackVfx.value("frameCount");
+    item["vfxFrameIndex"] = attackVfx.value("frameIndex");
+    item["vfxFrameWidth"] = attackVfx.value("frameWidth");
+    item["vfxFrameHeight"] = attackVfx.value("frameHeight");
     item["attackVfxSize"] = std::max(character.attackBox.rect.width(), character.attackBox.rect.height());
     item["hurtbox"] = boxToVariant(character.hurtbox);
     item["attackBox"] = boxToVariant(character.attackBox);

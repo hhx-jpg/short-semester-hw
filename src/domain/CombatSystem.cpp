@@ -11,14 +11,26 @@ CharacterObject* player(QHash<QString, CharacterObject>& characters) {
     auto it = characters.find(QStringLiteral("player"));
     return it == characters.end() ? nullptr : &it.value();
 }
+} // namespace
 
-void applyPlayerDamage(CharacterObject& playerCharacter, int damage, WorldEvents& events) {
+CombatResult CombatSystem::applyDamageToPlayer(CharacterObject& playerCharacter, int damage) {
+    CombatResult result;
+    if (!playerCharacter.alive) {
+        return result;
+    }
+
     playerCharacter.hp = std::max(0, playerCharacter.hp - std::max(0, damage));
+    result.playerStatsChanged = true;
     if (playerCharacter.hp == 0) {
         playerCharacter.alive = false;
+        playerCharacter.moveDirection = 0;
+        playerCharacter.velocity = QPointF(0, 0);
+        playerCharacter.attackBox.active = false;
+        playerCharacter.hurtbox.active = false;
+        playerCharacter.attackVfxKey.clear();
         CharacterSystem::setState(playerCharacter, QStringLiteral("dead"), 1, 90);
-        events.sounds.push_back(QStringLiteral("player.dead"));
-        return;
+        result.sounds.push_back(QStringLiteral("player.dead"));
+        return result;
     }
 
     if (playerCharacter.state == QStringLiteral("hit")) {
@@ -26,23 +38,22 @@ void applyPlayerDamage(CharacterObject& playerCharacter, int damage, WorldEvents
         playerCharacter.actionDurationMs = 0;
     }
     CharacterSystem::setState(playerCharacter, QStringLiteral("hit"), 4, 90, 360);
-    events.sounds.push_back(QStringLiteral("player.hurt"));
+    result.sounds.push_back(QStringLiteral("player.hurt"));
+    return result;
 }
-} // namespace
 
-void CombatSystem::checkAttackHits(
+CombatResult CombatSystem::checkAttackHits(
     CharacterObject& attacker,
     QHash<QString, CharacterObject>& characters,
-    QSet<QString>& resolvedAttackTokens,
-    int& damageCount,
-    WorldEvents& events) {
+    QSet<QString>& resolvedAttackTokens) {
+    CombatResult result;
     if (!attacker.alive || !CollisionSystem::canUseBox(attacker.attackBox)) {
-        return;
+        return result;
     }
 
     const QString token = QStringLiteral("%1-attack-%2").arg(attacker.id).arg(attacker.attackSerial);
     if (resolvedAttackTokens.contains(token)) {
-        return;
+        return result;
     }
 
     if (attacker.kind == QStringLiteral("player")) {
@@ -57,34 +68,26 @@ void CombatSystem::checkAttackHits(
 
             resolvedAttackTokens.insert(token);
             target.hp = std::max(0, target.hp - attacker.attackDamage);
-            ++damageCount;
+            result.damageCountDelta = 1;
             if (target.hp == 0) {
                 target.alive = false;
                 CharacterSystem::setState(target, QStringLiteral("dead"), 1, 90);
             } else {
                 CharacterSystem::setState(target, QStringLiteral("hit"), target.animationFamily == QStringLiteral("small_bee") ? 4 : 1, 90, 360);
             }
-            events.damageCountChanged = true;
-            events.sounds.push_back(QStringLiteral("enemy.hurt.1"));
-            break;
+            result.sounds.push_back(QStringLiteral("enemy.hurt.1"));
+            return result;
         }
-        return;
+        return result;
     }
 
     auto* p = player(characters);
     if (!p || !p->alive || !CollisionSystem::canUseBox(p->hurtbox) || !attacker.attackBox.rect.intersects(p->hurtbox.rect)) {
-        return;
+        return result;
     }
 
     resolvedAttackTokens.insert(token);
-    applyPlayerDamage(*p, attacker.attackDamage, events);
-}
-
-void CombatSystem::checkPlayerAttackHits(QHash<QString, CharacterObject>& characters, QSet<QString>& resolvedAttackTokens, int& damageCount, WorldEvents& events) {
-    auto* p = player(characters);
-    if (p) {
-        checkAttackHits(*p, characters, resolvedAttackTokens, damageCount, events);
-    }
+    return applyDamageToPlayer(*p, attacker.attackDamage);
 }
 
 } // namespace skybound

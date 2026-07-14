@@ -14,6 +14,7 @@ CharacterObject CharacterFactory::createPlayer(qreal x, qreal y, const WorldTuni
     player.hp = 100;
     player.maxHp = 100;
     player.lives = 3;
+    player.animationFamily = QStringLiteral("player");
     player.position = QPointF(x, y);
     player.facingLeft = true;
     CharacterSystem::setState(player, QStringLiteral("idle"), 1, 90);
@@ -26,7 +27,6 @@ CharacterObject CharacterFactory::createSmallBee(qreal x, qreal y, const WorldTu
     bee.id = QStringLiteral("small_bee_1");
     bee.kind = QStringLiteral("enemy");
     bee.animationFamily = QStringLiteral("small_bee");
-    bee.attackVfxKey = QStringLiteral("mob.small_bee.vfx.attack");
     bee.hp = 30;
     bee.maxHp = 30;
     bee.lives = 1;

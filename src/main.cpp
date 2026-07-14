@@ -10,10 +10,9 @@ int main(int argc, char* argv[]) {
     QGuiApplication app(argc, argv);
 
     skybound::ResourceManager resourceManager;
-    skybound::GameWorldViewModel gameWorld;
+    skybound::GameWorldViewModel gameWorld(resourceManager);
 
     QQmlApplicationEngine engine;
-    engine.rootContext()->setContextProperty("resourceManager", &resourceManager);
     engine.rootContext()->setContextProperty("gameWorld", &gameWorld);
 
     QObject::connect(

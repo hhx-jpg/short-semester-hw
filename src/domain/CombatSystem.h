@@ -9,18 +9,12 @@ namespace skybound {
 
 class CombatSystem {
 public:
-    static void checkAttackHits(
+    static CombatResult checkAttackHits(
         CharacterObject& attacker,
         QHash<QString, CharacterObject>& characters,
-        QSet<QString>& resolvedAttackTokens,
-        int& damageCount,
-        WorldEvents& events);
+        QSet<QString>& resolvedAttackTokens);
 
-    static void checkPlayerAttackHits(
-        QHash<QString, CharacterObject>& characters,
-        QSet<QString>& resolvedAttackTokens,
-        int& damageCount,
-        WorldEvents& events);
+    static CombatResult applyDamageToPlayer(CharacterObject& playerCharacter, int damage);
 };
 
 } // namespace skybound

@@ -20,25 +20,6 @@ ApplicationWindow {
         focus: true
         clip: true
 
-        property bool aimingUp: false
-        property bool aimingDown: false
-
-        function attackDirection() {
-            if (aimingUp) {
-                return "up"
-            }
-            if (aimingDown) {
-                return "down"
-            }
-            const chars = gameWorld.characters
-            for (let i = 0; i < chars.length; ++i) {
-                if (chars[i].id === "player") {
-                    return chars[i].facingLeft ? "left" : "right"
-                }
-            }
-            return "left"
-        }
-
         Keys.onPressed: function(event) {
             if (event.key === Qt.Key_A) {
                 gameWorld.playerRun(-1)
@@ -51,12 +32,12 @@ ApplicationWindow {
                 return
             }
             if (event.key === Qt.Key_W) {
-                aimingUp = true
+                gameWorld.setAimUpPressed(true)
                 event.accepted = true
                 return
             }
             if (event.key === Qt.Key_S) {
-                aimingDown = true
+                gameWorld.setAimDownPressed(true)
                 event.accepted = true
                 return
             }
@@ -93,12 +74,12 @@ ApplicationWindow {
                 return
             }
             if (event.key === Qt.Key_W) {
-                aimingUp = false
+                gameWorld.setAimUpPressed(false)
                 event.accepted = true
                 return
             }
             if (event.key === Qt.Key_S) {
-                aimingDown = false
+                gameWorld.setAimDownPressed(false)
                 event.accepted = true
                 return
             }
@@ -115,7 +96,7 @@ ApplicationWindow {
                 y: modelData.y
                 width: modelData.width
                 height: modelData.height
-                source: resourceManager.image(modelData.imageKey)
+                source: modelData.source
                 opacity: modelData.opacity
                 fillMode: Image.Stretch
                 smooth: false
@@ -160,25 +141,32 @@ ApplicationWindow {
                 Item {
                     id: characterSprite
                     anchors.fill: parent
-                    clip: resourceManager.isSpriteSheetAnimation(modelData.animationKey)
+                    clip: modelData.spriteIsSheet
 
                     Image {
                         anchors.fill: parent
-                        visible: !resourceManager.isSpriteSheetAnimation(modelData.animationKey)
-                        source: resourceManager.animationFrame(modelData.animationKey, modelData.frameIndex)
+                        visible: !modelData.spriteIsSheet
+                        source: modelData.spriteSource
                         fillMode: Image.PreserveAspectFit
                         smooth: false
                     }
 
                     Image {
-                        readonly property int sheetFrameCount: resourceManager.spriteSheetFrameCount(modelData.animationKey)
+                        readonly property int sheetFrameCount: Math.max(1, modelData.spriteFrameCount)
+                        readonly property real sourceFrameWidth: Math.max(1, modelData.spriteFrameWidth)
+                        readonly property real sourceFrameHeight: Math.max(1, modelData.spriteFrameHeight)
 
-                        x: -modelData.frameIndex * characterSprite.width
+                        x: 0
                         y: 0
-                        width: characterSprite.width * Math.max(1, sheetFrameCount)
+                        width: characterSprite.width
                         height: characterSprite.height
-                        visible: resourceManager.isSpriteSheetAnimation(modelData.animationKey)
-                        source: resourceManager.spriteSheetImage(modelData.animationKey)
+                        visible: modelData.spriteIsSheet
+                        source: modelData.spriteSource
+                        sourceClipRect: Qt.rect(
+                            modelData.spriteFrameIndex * sourceFrameWidth,
+                            0,
+                            sourceFrameWidth,
+                            sourceFrameHeight)
                         fillMode: Image.Stretch
                         smooth: false
                     }
@@ -198,32 +186,41 @@ ApplicationWindow {
             model: gameWorld.characters
 
             Item {
-                readonly property bool beeAttackVfx: modelData.attackVfxKey !== ""
+                readonly property bool vfxIsSheet: modelData.vfxIsSheet
                 readonly property real baseVfxSize: modelData.attackVfxSize > 0 ? modelData.attackVfxSize : Math.max(modelData.attackBox.width, modelData.attackBox.height)
-                readonly property real vfxSize: beeAttackVfx ? baseVfxSize * 1.4 : baseVfxSize
-                readonly property int vfxFrameCount: beeAttackVfx ? resourceManager.spriteSheetFrameCount(modelData.attackVfxKey) : 5
+                readonly property real vfxSize: modelData.vfxIsSheet ? baseVfxSize * 1.4 : baseVfxSize
+                readonly property int vfxFrameCount: Math.max(1, modelData.vfxFrameCount)
+                readonly property real sourceFrameWidth: Math.max(1, modelData.vfxFrameWidth)
+                readonly property real sourceFrameHeight: Math.max(1, modelData.vfxFrameHeight)
 
                 x: modelData.attackBox.x + (modelData.attackBox.width - vfxSize) / 2
                 y: modelData.attackBox.y + (modelData.attackBox.height - vfxSize) / 2
                 width: vfxSize
                 height: vfxSize
                 z: 3
-                visible: (modelData.state === "attack" || modelData.state === "skill") && (modelData.kind === "player" || beeAttackVfx)
+                visible: (modelData.state === "attack" || modelData.state === "skill") && modelData.vfxSource !== ""
                 clip: true
 
                 Image {
-                    x: -Math.min(modelData.frameIndex, parent.vfxFrameCount - 1) * parent.vfxSize
+                    x: 0
                     y: 0
-                    width: parent.vfxSize * parent.vfxFrameCount
+                    width: parent.vfxSize
                     height: parent.vfxSize
-                    source: parent.beeAttackVfx ? resourceManager.spriteSheetImage(modelData.attackVfxKey) : "qrc:/resources/player/vfx_attack_" + modelData.attackDirection + ".png"
+                    source: modelData.vfxSource
+                    sourceClipRect: parent.vfxIsSheet
+                        ? Qt.rect(
+                            modelData.vfxFrameIndex * parent.sourceFrameWidth,
+                            0,
+                            parent.sourceFrameWidth,
+                            parent.sourceFrameHeight)
+                        : Qt.rect(0, 0, 0, 0)
                     fillMode: Image.Stretch
                     smooth: false
 
                     transform: Scale {
                         origin.x: width / 2
                         origin.y: height / 2
-                        xScale: parent.beeAttackVfx && modelData.attackDirection === "left" ? -1 : 1
+                        xScale: 1
                         yScale: 1
                     }
                 }
@@ -367,13 +364,7 @@ ApplicationWindow {
             }
             onReleased: function(mouse) {
                 if (mouse.button === Qt.RightButton) {
-                    var wasCharged = gameWorld.chargeProgress >= 1.0
-                    gameWorld.setChargePressed(false)
-                    if (wasCharged) {
-                        gameWorld.playerBurstAttack()
-                    } else {
-                        gameWorld.playerAttack(playField.attackDirection())
-                    }
+                    gameWorld.releaseAttack()
                 }
             }
         }

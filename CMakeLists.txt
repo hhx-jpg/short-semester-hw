@@ -6,7 +6,7 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
 
-find_package(Qt6 REQUIRED COMPONENTS Core Gui Qml Quick QuickControls2)
+find_package(Qt6 REQUIRED COMPONENTS Core Gui Qml Quick QuickControls2 Test)
 
 qt_standard_project_setup(REQUIRES 6.8)
 
@@ -29,6 +29,8 @@ add_executable(SkyboundTactics WIN32
     src/domain/PhysicsSystem.cpp
     src/domain/SceneBuilder.h
     src/domain/SceneBuilder.cpp
+    src/domain/WorldProcessor.h
+    src/domain/WorldProcessor.cpp
     src/viewmodel/GameWorldViewModel.h
     src/viewmodel/GameWorldViewModel.cpp
 )
@@ -64,33 +66,67 @@ qt_add_resources(SkyboundTactics sprite_resources
         "resources/Mob/Small Bee/Attack/Attack-Sheet.png"
         "resources/Mob/Small Bee/Hit/Hit-Sheet.png"
         "resources/Mob/Small Bee/Hit/hit.png"
-        resources/enemy/run/1.png
-        resources/enemy/run/2.png
-        resources/enemy/run/3.png
-        resources/enemy/run/4.png
-        resources/enemy/run/5.png
-        resources/enemy/run/6.png
-        resources/enemy/run/7.png
-        resources/enemy/run/8.png
-        resources/enemy/jump/1.png
-        resources/enemy/jump/2.png
-        resources/enemy/jump/3.png
-        resources/enemy/jump/4.png
-        resources/enemy/jump/5.png
-        resources/enemy/jump/6.png
-        resources/enemy/jump/7.png
-        resources/enemy/jump/8.png
-        resources/player/idle.png
-        resources/player/run.png
-        resources/player/jump.png
-        resources/player/fall.png
-        resources/player/attack.png
-        resources/player/roll.png
-        resources/player/dead.png
+        "resources/Mob/Small Bee/Hit/hit_left.png"
+        resources/player/idle/1.png
+        resources/player/idle/2.png
+        resources/player/idle/3.png
+        resources/player/idle/4.png
+        resources/player/idle/5.png
+        resources/player/idle/6.png
+        resources/player/run/1.png
+        resources/player/run/2.png
+        resources/player/run/3.png
+        resources/player/run/4.png
+        resources/player/run/5.png
+        resources/player/run/6.png
+        resources/player/run/7.png
+        resources/player/run/8.png
+        resources/player/jump/1.png
+        resources/player/jump/2.png
+        resources/player/jump/3.png
+        resources/player/jump/4.png
+        resources/player/jump/5.png
+        resources/player/jump/6.png
+        resources/player/jump/7.png
+        resources/player/jump/8.png
+        resources/player/fall/1.png
+        resources/player/fall/2.png
+        resources/player/fall/3.png
+        resources/player/fall/4.png
         resources/player/hit/1.png
         resources/player/hit/2.png
         resources/player/hit/3.png
         resources/player/hit/4.png
+        resources/player/dash_on_floor/1.png
+        resources/player/dash_on_floor/2.png
+        resources/player/squat/1.png
+        resources/player/squat/2.png
+        resources/player/squat/3.png
+        resources/player/squat/4.png
+        resources/player/squat/5.png
+        resources/player/squat/6.png
+        resources/player/squat/7.png
+        resources/player/squat/8.png
+        resources/player/squat/9.png
+        resources/player/squat/10.png
+        resources/player/silk/1.png
+        resources/player/silk/2.png
+        resources/player/silk/3.png
+        resources/player/silk/4.png
+        resources/player/silk/5.png
+        resources/player/silk/6.png
+        resources/player/silk/7.png
+        resources/player/silk/8.png
+        resources/player/silk/9.png
+        resources/player/throw_barb/1.png
+        resources/player/throw_barb/2.png
+        resources/player/throw_barb/3.png
+        resources/player/throw_barb/4.png
+        resources/player/throw_barb/5.png
+        resources/player/throw_barb/6.png
+        resources/player/throw_barb/7.png
+        resources/player/throw_barb/8.png
+        resources/player/sprite/sprite_sprite.png
         resources/player/vfx_attack_down.png
         resources/player/vfx_attack_left.png
         resources/player/vfx_attack_right.png
@@ -108,6 +144,32 @@ qt_add_resources(SkyboundTactics sprite_resources
         resources/audio/player_dead.mp3
         resources/audio/player_run.mp3
 )
+
+enable_testing()
+
+add_executable(DomainSystemsTest
+    tests/DomainSystemsTest.cpp
+    src/model/GameWorldTypes.h
+    src/domain/CharacterSystem.h
+    src/domain/CharacterSystem.cpp
+    src/domain/CollisionSystem.h
+    src/domain/CollisionSystem.cpp
+    src/domain/CombatSystem.h
+    src/domain/CombatSystem.cpp
+)
+target_include_directories(DomainSystemsTest PRIVATE src)
+target_link_libraries(DomainSystemsTest PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
+if(WIN32)
+    add_custom_command(TARGET DomainSystemsTest POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            $<TARGET_FILE:Qt6::Core>
+            $<TARGET_FILE:Qt6::Gui>
+            $<TARGET_FILE:Qt6::Test>
+            $<TARGET_FILE_DIR:DomainSystemsTest>
+        COMMAND_EXPAND_LISTS
+    )
+endif()
+add_test(NAME DomainSystemsTest COMMAND DomainSystemsTest)
 
 if(WIN32)
     add_custom_command(TARGET SkyboundTactics POST_BUILD
