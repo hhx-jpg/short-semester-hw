@@ -16,6 +16,21 @@ namespace skybound {
 
 namespace {
 constexpr int kFrameMs = 16;
+
+// 在地形上找一个安全的出生 X 坐标：选取最宽的地形块，在其靠右位置生成
+qreal findSpawnXOnTerrain(const QList<TerrainPiece>& terrain, qreal actorWidth, qreal playableRight) {
+    qreal bestX = 0;
+    qreal bestWidth = 0;
+    for (const auto& piece : terrain) {
+        if (!piece.solid) continue;
+        const qreal w = piece.rect.width();
+        if (w > bestWidth) {
+            bestWidth = w;
+            bestX = piece.rect.left() + w * 0.72;
+        }
+    }
+    return std::clamp(bestX - actorWidth / 2, 0.0, playableRight - actorWidth);
+}
 } // namespace
 
 GameWorldViewModel::GameWorldViewModel(const ResourceManager& resources, QObject* parent)
@@ -399,7 +414,7 @@ void GameWorldViewModel::initializeWorld() {
 
     const qreal spawnY = terrain_.isEmpty() ? viewportHeight_ - tuning_.actorHeight : terrain_.front().rect.top() - tuning_.actorHeight;
     const qreal playerX = (playableLeft_ + playableRight_ - tuning_.actorWidth) / 2.0;
-    const qreal beeX = std::min(playableRight_ - tuning_.actorWidth, playableLeft_ + (playableRight_ - playableLeft_) * 0.72);
+    const qreal beeX = findSpawnXOnTerrain(terrain_, tuning_.actorWidth, playableRight_);
 
     const auto playerCharacter = CharacterFactory::createPlayer(playerX, spawnY, tuning_);
     const auto bee = CharacterFactory::createSmallBee(beeX, spawnY, tuning_);
@@ -448,7 +463,7 @@ void GameWorldViewModel::switchToScene(SceneId scene, EntrySide entrySide) {
     CollisionSystem::updateCollisionBoxes(playerSnapshot, tuning_);
     characters_.insert(playerSnapshot.id, playerSnapshot);
 
-    const qreal beeX = std::min(playableRight_ - tuning_.actorWidth, playableLeft_ + (playableRight_ - playableLeft_) * 0.72);
+    const qreal beeX = findSpawnXOnTerrain(terrain_, tuning_.actorWidth, playableRight_);
     const auto bee = CharacterFactory::createSmallBee(beeX, spawnY, tuning_);
     characters_.insert(bee.id, bee);
 
