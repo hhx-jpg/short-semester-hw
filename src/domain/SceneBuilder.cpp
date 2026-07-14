@@ -28,11 +28,38 @@ SceneBuildResult buildBackground2Scene(qreal viewportWidth, qreal mapX, qreal ma
     result.terrain.push_back(TerrainPiece{QStringLiteral("bg2_top_platform"), QStringLiteral("platform"), QRectF(605, 492, 594, 41), true});
     return result;
 }
+
+SceneBuildResult buildCustomMapScene(qreal viewportWidth, qreal viewportHeight, qreal mapX, qreal mapY, qreal mapWidth, qreal mapHeight) {
+    SceneBuildResult result;
+    result.mapLayers.push_back(MapLayer{QStringLiteral("custom_background"), QStringLiteral("scene.custom.background"), QRectF(mapX, mapY, mapWidth, mapHeight), 1.0});
+    result.playableLeft = 0;
+    result.playableRight = viewportWidth;
+
+    // 地面高度与原始工厂保持一致（mapHeight 的 86.5%）
+    const qreal groundY = mapY + mapHeight * 0.865;
+
+    // 地面
+    result.terrain.push_back(TerrainPiece{QStringLiteral("custom_ground"), QStringLiteral("ground"), QRectF(result.playableLeft, groundY, result.playableRight - result.playableLeft, viewportHeight - groundY), true});
+
+    // 中间三分之一区域的主平台（距地面 +117px，安全可跳）
+    result.terrain.push_back(TerrainPiece{QStringLiteral("custom_mid_platform"), QStringLiteral("platform"), QRectF(350, groundY - 117, 500, 24), true});
+
+    // 阶梯1：从中间平台右侧向右上方延伸（距中间平台 +60px）
+    result.terrain.push_back(TerrainPiece{QStringLiteral("custom_stair_1"), QStringLiteral("platform"), QRectF(850, groundY - 177, 130, 24), true});
+
+    // 阶梯2：从阶梯1向左上方延伸（距阶梯1 +55px）
+    result.terrain.push_back(TerrainPiece{QStringLiteral("custom_stair_2"), QStringLiteral("platform"), QRectF(720, groundY - 232, 130, 24), true});
+
+    return result;
+}
 } // namespace
 
 SceneBuildResult SceneBuilder::build(SceneId scene, qreal viewportWidth, qreal viewportHeight, qreal mapX, qreal mapY, qreal mapWidth, qreal mapHeight) {
     if (scene == SceneId::OriginalFactory) {
         return buildOriginalScene(viewportWidth, viewportHeight, mapX, mapY, mapWidth, mapHeight);
+    }
+    if (scene == SceneId::CustomMap) {
+        return buildCustomMapScene(viewportWidth, viewportHeight, mapX, mapY, mapWidth, mapHeight);
     }
     return buildBackground2Scene(viewportWidth, mapX, mapY, mapWidth, mapHeight);
 }

@@ -86,7 +86,7 @@ int ResourceManager::spriteSheetFrameCount(const QString& animationKey) const {
 void ResourceManager::registerDefaults() {
     registerImage(QStringLiteral("scene.factory.background"), QStringLiteral("qrc:/resources/background.png"));
     registerImage(QStringLiteral("scene.factory.background2"), QStringLiteral("qrc:/resources/background2.png"));
-
+    registerImage(QStringLiteral("scene.custom.background"), QStringLiteral("qrc:/resources/background3.png"));
     registerImage(QStringLiteral("mob.small_bee.fly.sheet"), QStringLiteral("qrc:/resources/Mob/Small Bee/Fly/Fly-Sheet.png"));
     registerImage(QStringLiteral("mob.small_bee.attack.sheet"), QStringLiteral("qrc:/resources/Mob/Small Bee/Attack/Attack-Sheet.png"));
     registerImage(QStringLiteral("mob.small_bee.hit.sheet"), QStringLiteral("qrc:/resources/Mob/Small Bee/Hit/Hit-Sheet.png"));

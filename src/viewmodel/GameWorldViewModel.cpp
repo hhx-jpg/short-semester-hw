@@ -99,7 +99,9 @@ int GameWorldViewModel::damageCount() const {
 }
 
 QString GameWorldViewModel::currentScene() const {
-    return currentScene_ == SceneId::OriginalFactory ? QStringLiteral("original_factory") : QStringLiteral("background2_factory");
+    if (currentScene_ == SceneId::OriginalFactory) return QStringLiteral("original_factory");
+    if (currentScene_ == SceneId::CustomMap) return QStringLiteral("custom_map");
+    return QStringLiteral("background2_factory");
 }
 
 qreal GameWorldViewModel::mapAspect() const {
@@ -406,7 +408,7 @@ void GameWorldViewModel::initializeWorld() {
 }
 
 void GameWorldViewModel::updateMapGeometry() {
-    mapAspect_ = currentScene_ == SceneId::OriginalFactory ? 1695.0 / 725.0 : 2360.0 / 725.0;
+    mapAspect_ = (currentScene_ == SceneId::OriginalFactory || currentScene_ == SceneId::CustomMap) ? 1695.0 / 725.0 : 2360.0 / 725.0;
     mapWidth_ = std::max(viewportWidth_, viewportHeight_ * mapAspect_);
     mapHeight_ = mapWidth_ / mapAspect_;
     mapX_ = (viewportWidth_ - mapWidth_) / 2.0;

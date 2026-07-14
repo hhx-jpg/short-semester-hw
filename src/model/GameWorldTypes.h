@@ -11,6 +11,7 @@ namespace skybound {
 enum class SceneId {
     OriginalFactory,
     Background2Factory,
+    CustomMap,
 };
 
 enum class EntrySide {
