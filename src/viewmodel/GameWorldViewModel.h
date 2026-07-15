@@ -31,6 +31,7 @@ class GameWorldViewModel : public QObject {
     Q_PROPERTY(int playerMaxHp READ playerMaxHp NOTIFY playerStatsChanged)
     Q_PROPERTY(int playerHeartCount READ playerHeartCount NOTIFY playerStatsChanged)
     Q_PROPERTY(qreal chargeProgress READ chargeProgress NOTIFY chargeProgressChanged)
+    Q_PROPERTY(QString gameState READ gameState NOTIFY gameStateChanged)
 
 public:
     explicit GameWorldViewModel(const ResourceManager& resources, QObject* parent = nullptr);
@@ -50,7 +51,10 @@ public:
     int playerMaxHp() const;
     int playerHeartCount() const;
     qreal chargeProgress() const;
+    QString gameState() const;
 
+    Q_INVOKABLE void startGame();
+    Q_INVOKABLE void returnToStartMenu();
     Q_INVOKABLE void reset();
     Q_INVOKABLE void setViewport(qreal width, qreal height);
     Q_INVOKABLE void tick(int deltaMs);
@@ -79,6 +83,7 @@ signals:
     void damageCountChanged();
     void soundRequested(const QString& key);
     void chargeProgressChanged();
+    void gameStateChanged();
 
 private:
     void initializeWorld();
@@ -86,7 +91,9 @@ private:
     void switchToScene(SceneId scene, EntrySide entrySide);
     void applySceneSwitch(const SceneSwitchRequest& sceneSwitch);
     void updateCharge(int deltaMs, WorldEvents& events);
+    void updateMovementSounds(WorldEvents& events);
     void applyCombatResult(const CombatResult& result, WorldEvents& events);
+    void updateDeathState();
     void emitEvents(const WorldEvents& events);
     void notifyWorldDataChanged(bool sceneChanged = false);
     QVariantMap animationPresentation(const QString& key, int frameIndex) const;
@@ -116,9 +123,12 @@ private:
     QSet<QString> resolvedAttackTokens_;
     int damageCount_ = 0;
     qreal chargeProgress_ = 0.0;
+    QString gameState_ = QStringLiteral("start");
     bool chargePressed_ = false;
     bool aimingUp_ = false;
     bool aimingDown_ = false;
+    bool playerRunningSoundActive_ = false;
+    bool enemyRunningSoundActive_ = false;
 };
 
 } // namespace skybound

@@ -14,6 +14,7 @@ int main(int argc, char* argv[]) {
 
     QQmlApplicationEngine engine;
     engine.rootContext()->setContextProperty("gameWorld", &gameWorld);
+    engine.rootContext()->setContextProperty("resourceManager", &resourceManager);
 
     QObject::connect(
         &engine,

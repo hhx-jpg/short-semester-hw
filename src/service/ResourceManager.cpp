@@ -139,6 +139,16 @@ void ResourceManager::registerDefaults() {
     registerAudio(QStringLiteral("player.hurt"), QStringLiteral("qrc:/resources/audio/player_hurt.mp3"));
     registerAudio(QStringLiteral("player.dead"), QStringLiteral("qrc:/resources/audio/player_dead.mp3"));
     registerAudio(QStringLiteral("player.run"), QStringLiteral("qrc:/resources/audio/player_run.mp3"));
+    registerAudio(QStringLiteral("enemy.run"), QStringLiteral("qrc:/resources/audio/enemy_run.mp3"));
+    registerAudio(QStringLiteral("enemy.attack"), QStringLiteral("qrc:/resources/audio/enemy_dash.mp3"));
+    registerAudio(QStringLiteral("enemy.hurt.1"), QStringLiteral("qrc:/resources/audio/enemy_hurt_1.mp3"));
+    registerAudio(QStringLiteral("enemy.hurt.2"), QStringLiteral("qrc:/resources/audio/enemy_hurt_2.mp3"));
+    registerAudio(QStringLiteral("enemy.hurt.3"), QStringLiteral("qrc:/resources/audio/enemy_hurt_3.mp3"));
+    registerAudio(QStringLiteral("enemy.throw.barbs"), QStringLiteral("qrc:/resources/audio/enemy_throw_barbs.mp3"));
+    registerAudio(QStringLiteral("enemy.throw.silk"), QStringLiteral("qrc:/resources/audio/enemy_throw_silk.mp3"));
+    registerAudio(QStringLiteral("enemy.throw.sword"), QStringLiteral("qrc:/resources/audio/enemy_throw_sword.mp3"));
+    registerAudio(QStringLiteral("barb.break"), QStringLiteral("qrc:/resources/audio/barb_break.mp3"));
+    registerAudio(QStringLiteral("bullet.time"), QStringLiteral("qrc:/resources/audio/bullet_time.mp3"));
 }
 
 void ResourceManager::registerImage(const QString& key, const QString& url) {

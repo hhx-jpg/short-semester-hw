@@ -6,6 +6,8 @@
 #include "domain/NpcSystem.h"
 #include "domain/PhysicsSystem.h"
 
+#include <cmath>
+
 namespace skybound {
 namespace {
 CharacterObject* player(QHash<QString, CharacterObject>& characters) {
@@ -36,7 +38,11 @@ SceneSwitchRequest WorldProcessor::advanceActors(
         }
 
         CharacterSystem::updateAnimation(character, deltaMs);
+        const qreal verticalVelocityBeforePhysics = character.velocity.y();
         PhysicsSystem::updateCharacterPhysics(character, deltaMs, currentScene, playableLeft, playableRight, terrain, tuning, chargePressed, sceneSwitch);
+        if (character.kind == QStringLiteral("player") && verticalVelocityBeforePhysics > 0.1 && std::abs(character.velocity.y()) < 0.01) {
+            events.sounds.push_back(QStringLiteral("player.land"));
+        }
         CollisionSystem::updateCollisionBoxes(character, tuning);
     }
     return sceneSwitch;

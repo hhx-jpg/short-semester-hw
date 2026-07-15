@@ -41,7 +41,7 @@ void NpcSystem::updateNpc(CharacterObject& npc, const CharacterObject* player, i
         if (npc.attackCooldownRemainingMs == 0) {
             CharacterSystem::beginAttack(npc, npc.facingLeft ? QStringLiteral("left") : QStringLiteral("right"), 4, 70, 280);
             npc.attackCooldownRemainingMs = npc.attackCooldownMs;
-            events.sounds.push_back(QStringLiteral("enemy_dash"));
+            events.sounds.push_back(QStringLiteral("enemy.attack"));
         }
         return;
     }

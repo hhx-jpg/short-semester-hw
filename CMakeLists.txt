@@ -6,7 +6,7 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
 
-find_package(Qt6 REQUIRED COMPONENTS Core Gui Qml Quick QuickControls2 Test)
+find_package(Qt6 REQUIRED COMPONENTS Core Gui Multimedia Qml Quick QuickControls2 Test)
 
 qt_standard_project_setup(REQUIRES 6.8)
 
@@ -42,6 +42,7 @@ target_include_directories(SkyboundTactics PRIVATE
 target_link_libraries(SkyboundTactics PRIVATE
     Qt6::Core
     Qt6::Gui
+    Qt6::Multimedia
     Qt6::Qml
     Qt6::Quick
     Qt6::QuickControls2
@@ -144,6 +145,16 @@ qt_add_resources(SkyboundTactics sprite_resources
         resources/audio/player_hurt.mp3
         resources/audio/player_dead.mp3
         resources/audio/player_run.mp3
+        resources/audio/enemy_run.mp3
+        resources/audio/enemy_dash.mp3
+        resources/audio/enemy_hurt_1.mp3
+        resources/audio/enemy_hurt_2.mp3
+        resources/audio/enemy_hurt_3.mp3
+        resources/audio/enemy_throw_barbs.mp3
+        resources/audio/enemy_throw_silk.mp3
+        resources/audio/enemy_throw_sword.mp3
+        resources/audio/barb_break.mp3
+        resources/audio/bullet_time.mp3
 )
 
 enable_testing()
@@ -177,10 +188,14 @@ if(WIN32)
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
             $<TARGET_FILE:Qt6::Core>
             $<TARGET_FILE:Qt6::Gui>
+            $<TARGET_FILE:Qt6::Multimedia>
             $<TARGET_FILE:Qt6::Qml>
             $<TARGET_FILE:Qt6::Quick>
             $<TARGET_FILE:Qt6::QuickControls2>
             $<TARGET_FILE_DIR:SkyboundTactics>
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+            "$<TARGET_FILE_DIR:Qt6::Core>/../plugins/multimedia"
+            "$<TARGET_FILE_DIR:SkyboundTactics>/multimedia"
         COMMAND_EXPAND_LISTS
     )
 endif()

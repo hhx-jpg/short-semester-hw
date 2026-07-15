@@ -158,6 +158,38 @@ qreal GameWorldViewModel::chargeProgress() const {
     return chargeProgress_;
 }
 
+QString GameWorldViewModel::gameState() const {
+    return gameState_;
+}
+
+void GameWorldViewModel::startGame() {
+    reset();
+    if (gameState_ != QStringLiteral("playing")) {
+        gameState_ = QStringLiteral("playing");
+        emit gameStateChanged();
+        emit soundRequested(QStringLiteral("bgm.factory.start"));
+    }
+}
+
+void GameWorldViewModel::returnToStartMenu() {
+    if (gameState_ == QStringLiteral("start")) {
+        return;
+    }
+
+    chargePressed_ = false;
+    chargeProgress_ = 0.0;
+    aimingUp_ = false;
+    aimingDown_ = false;
+    playerRunningSoundActive_ = false;
+    enemyRunningSoundActive_ = false;
+    emit soundRequested(QStringLiteral("player.run.stop"));
+    emit soundRequested(QStringLiteral("enemy.run.stop"));
+    emit soundRequested(QStringLiteral("bgm.factory.stop"));
+    gameState_ = QStringLiteral("start");
+    emit chargeProgressChanged();
+    emit gameStateChanged();
+}
+
 void GameWorldViewModel::reset() {
     damageCount_ = 0;
     chargePressed_ = false;
@@ -165,6 +197,8 @@ void GameWorldViewModel::reset() {
     aimingUp_ = false;
     aimingDown_ = false;
     resolvedAttackTokens_.clear();
+    playerRunningSoundActive_ = false;
+    enemyRunningSoundActive_ = false;
     initializeWorld();
     emit damageCountChanged();
     emit chargeProgressChanged();
@@ -186,6 +220,10 @@ void GameWorldViewModel::setViewport(qreal width, qreal height) {
 }
 
 void GameWorldViewModel::tick(int deltaMs) {
+    if (gameState_ != QStringLiteral("playing")) {
+        return;
+    }
+
     const int dt = deltaMs <= 0 ? kFrameMs : deltaMs;
     WorldEvents events;
 
@@ -196,6 +234,8 @@ void GameWorldViewModel::tick(int deltaMs) {
     const bool sceneChanged = sceneSwitch.pending;
     applySceneSwitch(sceneSwitch);
     applyCombatResult(WorldProcessor::resolveCombat(characters_, resolvedAttackTokens_), events);
+    updateMovementSounds(events);
+    updateDeathState();
 
     emitEvents(events);
     notifyWorldDataChanged(sceneChanged);
@@ -308,6 +348,7 @@ void GameWorldViewModel::playerTakeHit(int damage) {
 
     WorldEvents events;
     applyCombatResult(CombatSystem::applyDamageToPlayer(*p, damage), events);
+    updateDeathState();
     emitEvents(events);
     emit charactersChanged();
 }
@@ -485,6 +526,28 @@ void GameWorldViewModel::updateCharge(int deltaMs, WorldEvents& events) {
     events.chargeProgressChanged = true;
 }
 
+void GameWorldViewModel::updateMovementSounds(WorldEvents& events) {
+    const auto* p = player();
+    const bool playerRunning = p && p->alive && p->state == QStringLiteral("run");
+    if (playerRunning != playerRunningSoundActive_) {
+        playerRunningSoundActive_ = playerRunning;
+        events.sounds.push_back(playerRunning ? QStringLiteral("player.run.start") : QStringLiteral("player.run.stop"));
+    }
+
+    bool enemyRunning = false;
+    for (auto it = characters_.constBegin(); it != characters_.constEnd(); ++it) {
+        const auto& character = it.value();
+        if (character.kind == QStringLiteral("enemy") && character.alive && character.state == QStringLiteral("run")) {
+            enemyRunning = true;
+            break;
+        }
+    }
+    if (enemyRunning != enemyRunningSoundActive_) {
+        enemyRunningSoundActive_ = enemyRunning;
+        events.sounds.push_back(enemyRunning ? QStringLiteral("enemy.run.start") : QStringLiteral("enemy.run.stop"));
+    }
+}
+
 void GameWorldViewModel::applyCombatResult(const CombatResult& result, WorldEvents& events) {
     if (result.damageCountDelta != 0) {
         damageCount_ += result.damageCountDelta;
@@ -494,6 +557,24 @@ void GameWorldViewModel::applyCombatResult(const CombatResult& result, WorldEven
         emit playerStatsChanged();
     }
     events.sounds.append(result.sounds);
+}
+
+void GameWorldViewModel::updateDeathState() {
+    const auto* p = player();
+    if (gameState_ == QStringLiteral("playing") && (!p || !p->alive)) {
+        chargePressed_ = false;
+        chargeProgress_ = 0.0;
+        aimingUp_ = false;
+        aimingDown_ = false;
+        playerRunningSoundActive_ = false;
+        enemyRunningSoundActive_ = false;
+        emit soundRequested(QStringLiteral("player.run.stop"));
+        emit soundRequested(QStringLiteral("enemy.run.stop"));
+        emit soundRequested(QStringLiteral("bgm.factory.stop"));
+        gameState_ = QStringLiteral("dead");
+        emit chargeProgressChanged();
+        emit gameStateChanged();
+    }
 }
 
 void GameWorldViewModel::emitEvents(const WorldEvents& events) {

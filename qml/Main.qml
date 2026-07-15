@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Controls
+import QtMultimedia
 
 ApplicationWindow {
     id: root
@@ -13,6 +14,102 @@ ApplicationWindow {
     title: "Skybound Tactics - 平台动作原型"
     color: "black"
 
+    MediaPlayer {
+        id: bgmPlayer
+        source: resourceManager.audio("bgm.factory")
+        loops: MediaPlayer.Infinite
+        audioOutput: AudioOutput {
+            volume: 0.35
+        }
+    }
+
+    MediaPlayer {
+        id: actionSound
+        audioOutput: AudioOutput {
+            volume: 0.85
+        }
+    }
+
+    MediaPlayer {
+        id: impactSound
+        audioOutput: AudioOutput {
+            volume: 0.9
+        }
+    }
+
+    MediaPlayer {
+        id: playerRunSound
+        source: resourceManager.audio("player.run")
+        loops: MediaPlayer.Infinite
+        audioOutput: AudioOutput {
+            volume: 0.45
+        }
+    }
+
+    MediaPlayer {
+        id: enemyRunSound
+        source: resourceManager.audio("enemy.run")
+        loops: MediaPlayer.Infinite
+        audioOutput: AudioOutput {
+            volume: 0.38
+        }
+    }
+
+    function playSound(key) {
+        if (key === "bgm.factory.start") {
+            bgmPlayer.play()
+            return
+        }
+        if (key === "bgm.factory.stop") {
+            bgmPlayer.stop()
+            return
+        }
+        if (key === "player.run.start") {
+            if (playerRunSound.playbackState !== MediaPlayer.PlayingState)
+                playerRunSound.play()
+            return
+        }
+        if (key === "player.run.stop") {
+            playerRunSound.stop()
+            return
+        }
+        if (key === "enemy.run.start") {
+            if (enemyRunSound.playbackState !== MediaPlayer.PlayingState)
+                enemyRunSound.play()
+            return
+        }
+        if (key === "enemy.run.stop") {
+            enemyRunSound.stop()
+            return
+        }
+
+        const source = resourceManager.audio(key)
+        if (source === "")
+            return
+
+        const player = key.indexOf("hurt") >= 0 || key.indexOf("dead") >= 0
+            ? impactSound
+            : actionSound
+        player.stop()
+        player.source = source
+        player.play()
+    }
+
+    Connections {
+        target: gameWorld
+
+        function onSoundRequested(key) {
+            root.playSound(key)
+        }
+
+        function onGameStateChanged() {
+            if (gameWorld.gameState !== "playing") {
+                playerRunSound.stop()
+                enemyRunSound.stop()
+            }
+        }
+    }
+
     Rectangle {
         id: playField
         anchors.fill: parent
@@ -21,6 +118,9 @@ ApplicationWindow {
         clip: true
 
         Keys.onPressed: function(event) {
+            if (gameWorld.gameState !== "playing") {
+                return
+            }
             if (event.key === Qt.Key_A) {
                 gameWorld.playerRun(-1)
                 event.accepted = true
@@ -59,6 +159,9 @@ ApplicationWindow {
         }
 
         Keys.onReleased: function(event) {
+            if (gameWorld.gameState !== "playing") {
+                return
+            }
             if (event.isAutoRepeat) {
                 event.accepted = true
                 return
@@ -121,7 +224,7 @@ ApplicationWindow {
 
         Timer {
             interval: 16
-            running: true
+            running: gameWorld.gameState === "playing"
             repeat: true
             onTriggered: gameWorld.tick(interval)
         }
@@ -358,19 +461,149 @@ ApplicationWindow {
             }
             onPressed: function(mouse) {
                 playField.forceActiveFocus()
+                if (gameWorld.gameState !== "playing") {
+                    return
+                }
                 if (mouse.button === Qt.RightButton) {
                     gameWorld.setChargePressed(true)
                 }
             }
             onReleased: function(mouse) {
+                if (gameWorld.gameState !== "playing") {
+                    return
+                }
                 if (mouse.button === Qt.RightButton) {
                     gameWorld.releaseAttack()
                 }
             }
         }
 
+        Rectangle {
+            id: startScreen
+            anchors.fill: parent
+            visible: gameWorld.gameState === "start"
+            color: "#d9141824"
+            z: 1000
+
+            Rectangle {
+                width: 440
+                height: 360
+                anchors.centerIn: parent
+                radius: 18
+                color: "#e6212939"
+                border.color: "#7fd7e8ff"
+                border.width: 2
+
+                Column {
+                    anchors.centerIn: parent
+                    width: 280
+                    spacing: 28
+
+                    Text {
+                        width: parent.width
+                        horizontalAlignment: Text.AlignHCenter
+                        text: "SKYBOUND TACTICS"
+                        color: "white"
+                        font.pixelSize: 34
+                        font.bold: true
+                    }
+
+                    Text {
+                        width: parent.width
+                        horizontalAlignment: Text.AlignHCenter
+                        text: "平台动作原型"
+                        color: "#b8c7db"
+                        font.pixelSize: 18
+                    }
+
+                    Button {
+                        id: startButton
+                        width: parent.width
+                        height: 58
+                        text: "开始游戏"
+                        font.pixelSize: 22
+                        font.bold: true
+                        onClicked: {
+                            gameWorld.startGame()
+                            playField.forceActiveFocus()
+                        }
+                    }
+
+                    Button {
+                        width: parent.width
+                        height: 58
+                        text: "退出游戏"
+                        font.pixelSize: 22
+                        onClicked: Qt.quit()
+                    }
+                }
+            }
+
+            onVisibleChanged: {
+                if (visible) {
+                    startButton.forceActiveFocus()
+                }
+            }
+        }
+
+        Rectangle {
+            id: deathScreen
+            anchors.fill: parent
+            visible: gameWorld.gameState === "dead"
+            color: "#c9000000"
+            z: 1000
+
+            Rectangle {
+                width: 430
+                height: 290
+                anchors.centerIn: parent
+                radius: 18
+                color: "#eb281d25"
+                border.color: "#d86b6b"
+                border.width: 2
+
+                Column {
+                    anchors.centerIn: parent
+                    width: 280
+                    spacing: 30
+
+                    Text {
+                        width: parent.width
+                        horizontalAlignment: Text.AlignHCenter
+                        text: "角色已死亡"
+                        color: "#ffdddd"
+                        font.pixelSize: 36
+                        font.bold: true
+                    }
+
+                    Text {
+                        width: parent.width
+                        horizontalAlignment: Text.AlignHCenter
+                        text: "本次造成伤害：" + gameWorld.damageCount
+                        color: "#d8c7c7"
+                        font.pixelSize: 18
+                    }
+
+                    Button {
+                        id: returnButton
+                        width: parent.width
+                        height: 58
+                        text: "返回开始界面"
+                        font.pixelSize: 21
+                        font.bold: true
+                        onClicked: gameWorld.returnToStartMenu()
+                    }
+                }
+            }
+
+            onVisibleChanged: {
+                if (visible) {
+                    returnButton.forceActiveFocus()
+                }
+            }
+        }
+
         Component.onCompleted: {
-            gameWorld.reset()
             gameWorld.setViewport(width, height)
             forceActiveFocus()
         }
