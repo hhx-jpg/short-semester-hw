@@ -65,6 +65,7 @@ qt_add_resources(SkyboundTactics sprite_resources
         resources/ui_heart.png
         resources/background3.png
         resources/background_forest2.png
+        resources/background_forest3.png
         "resources/Mob/Small Bee/Fly/Fly-Sheet.png"
         "resources/Mob/Small Bee/Attack/Attack-Sheet.png"
         "resources/Mob/Small Bee/Hit/Hit-Sheet.png"

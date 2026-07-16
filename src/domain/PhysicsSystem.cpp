@@ -50,6 +50,10 @@ void PhysicsSystem::updateCharacterPhysics(
         sceneSwitch = SceneSwitchRequest{true, SceneId::NewForestMap, EntrySide::Right};
     } else if (isPlayer && currentScene == SceneId::NewForestMap && character.position.x() > playableRight - tuning.actorWidth) {
         sceneSwitch = SceneSwitchRequest{true, SceneId::CustomMap, EntrySide::Left};
+    } else if (isPlayer && currentScene == SceneId::NewForestMap && character.position.x() < playableLeft) {
+        sceneSwitch = SceneSwitchRequest{true, SceneId::ForestMap3, EntrySide::Right};
+    } else if (isPlayer && currentScene == SceneId::ForestMap3 && character.position.x() > playableRight - tuning.actorWidth) {
+        sceneSwitch = SceneSwitchRequest{true, SceneId::NewForestMap, EntrySide::Left};
     }
     character.position.rx() = std::max<qreal>(playableLeft, std::min(playableRight - tuning.actorWidth, character.position.x()));
 

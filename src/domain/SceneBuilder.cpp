@@ -79,6 +79,32 @@ SceneBuildResult buildNewForestScene(qreal viewportWidth, qreal viewportHeight, 
 
     return result;
 }
+
+SceneBuildResult buildForest3Scene(qreal viewportWidth, qreal viewportHeight, qreal mapX, qreal mapY, qreal mapWidth, qreal mapHeight) {
+    SceneBuildResult result;
+    result.mapLayers.push_back(MapLayer{QStringLiteral("forest3_background"), QStringLiteral("scene.forest3.background"), QRectF(mapX, mapY, mapWidth, mapHeight), 1.0});
+    result.playableLeft = 0;
+    result.playableRight = viewportWidth;
+    const qreal groundY = mapY + mapHeight * 0.865;
+    result.terrain.push_back(TerrainPiece{QStringLiteral("f3_ground"), QStringLiteral("ground"), QRectF(result.playableLeft, groundY, result.playableRight - result.playableLeft, viewportHeight - groundY), true});
+
+    // 1: (1, 589, 142, 37)
+    result.terrain.push_back(TerrainPiece{QStringLiteral("f3_plat1"), QStringLiteral("platform"), QRectF(1, 589, 142, 37), true});
+    // 2: (145, 510, 957, 47)
+    result.terrain.push_back(TerrainPiece{QStringLiteral("f3_plat2"), QStringLiteral("platform"), QRectF(145, 510, 957, 47), true});
+    // 3: (1131, 454, 69, 37)
+    result.terrain.push_back(TerrainPiece{QStringLiteral("f3_plat3"), QStringLiteral("platform"), QRectF(1131, 454, 69, 37), true});
+    // 4: (583, 399, 520, 42)
+    result.terrain.push_back(TerrainPiece{QStringLiteral("f3_plat4"), QStringLiteral("platform"), QRectF(583, 399, 520, 42), true});
+    // 5: (460, 363, 91, 37)
+    result.terrain.push_back(TerrainPiece{QStringLiteral("f3_plat5"), QStringLiteral("platform"), QRectF(460, 363, 91, 37), true});
+    // 6: (173, 339, 259, 40)
+    result.terrain.push_back(TerrainPiece{QStringLiteral("f3_plat6"), QStringLiteral("platform"), QRectF(173, 339, 259, 40), true});
+    // 7: (1, 297, 157, 43)
+    result.terrain.push_back(TerrainPiece{QStringLiteral("f3_plat7"), QStringLiteral("platform"), QRectF(1, 297, 157, 43), true});
+
+    return result;
+}
 } // namespace
 
 SceneBuildResult SceneBuilder::build(SceneId scene, qreal viewportWidth, qreal viewportHeight, qreal mapX, qreal mapY, qreal mapWidth, qreal mapHeight) {
@@ -90,6 +116,9 @@ SceneBuildResult SceneBuilder::build(SceneId scene, qreal viewportWidth, qreal v
     }
     if (scene == SceneId::NewForestMap) {
         return buildNewForestScene(viewportWidth, viewportHeight, mapX, mapY, mapWidth, mapHeight);
+    }
+    if (scene == SceneId::ForestMap3) {
+        return buildForest3Scene(viewportWidth, viewportHeight, mapX, mapY, mapWidth, mapHeight);
     }
     return buildBackground2Scene(viewportWidth, mapX, mapY, mapWidth, mapHeight);
 }

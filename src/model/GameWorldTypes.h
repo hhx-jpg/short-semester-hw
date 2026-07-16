@@ -13,6 +13,7 @@ enum class SceneId {
     Background2Factory,
     CustomMap,
     NewForestMap,
+    ForestMap3,
 };
 
 enum class EntrySide {

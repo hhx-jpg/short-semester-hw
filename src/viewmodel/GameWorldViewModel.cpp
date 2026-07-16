@@ -464,7 +464,7 @@ void GameWorldViewModel::initializeWorld() {
 }
 
 void GameWorldViewModel::updateMapGeometry() {
-    mapAspect_ = (currentScene_ == SceneId::OriginalFactory || currentScene_ == SceneId::CustomMap || currentScene_ == SceneId::NewForestMap) ? 1695.0 / 725.0 : 2360.0 / 725.0;
+    mapAspect_ = (currentScene_ == SceneId::OriginalFactory || currentScene_ == SceneId::CustomMap || currentScene_ == SceneId::NewForestMap || currentScene_ == SceneId::ForestMap3) ? 1695.0 / 725.0 : 2360.0 / 725.0;
     mapWidth_ = std::max(viewportWidth_, viewportHeight_ * mapAspect_);
     mapHeight_ = mapWidth_ / mapAspect_;
     mapX_ = (viewportWidth_ - mapWidth_) / 2.0;
