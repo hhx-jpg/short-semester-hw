@@ -50,10 +50,11 @@ SceneSwitchRequest WorldProcessor::advanceActors(
 
 CombatResult WorldProcessor::resolveCombat(
     QHash<QString, CharacterObject>& characters,
+    const QList<TerrainPiece>& terrain,
     QSet<QString>& resolvedAttackTokens) {
     CombatResult combined;
     for (auto it = characters.begin(); it != characters.end(); ++it) {
-        const CombatResult result = CombatSystem::checkAttackHits(it.value(), characters, resolvedAttackTokens);
+        const CombatResult result = CombatSystem::checkAttackHits(it.value(), characters, terrain, resolvedAttackTokens);
         combined.damageCountDelta += result.damageCountDelta;
         combined.sounds.append(result.sounds);
         combined.playerStatsChanged = combined.playerStatsChanged || result.playerStatsChanged;

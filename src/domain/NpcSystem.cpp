@@ -8,54 +8,52 @@
 namespace skybound {
 
 // ──────────────────────────────────────────────
-// 蜗牛 AI 更新
+// 蜗牛 AI 更新 — 平台往返巡逻
 //
-// 蜗牛的移动逻辑：
-//   1. 被攻击（hide / hit）或玩家死亡时原地不动
-//   2. 玩家在检测范围内时朝玩家缓步靠近
-//   3. 距离玩家 < 20px 时停下，防止左右反复横跳
-//   4. 距离玩家 > detectionRange 时静止
-//
-// 额外职责：递减 attackCooldownRemainingMs，
-// 供 CombatSystem::checkContactDamage 判断接触伤害冷却。
+// 蜗牛在出生点附近的平台上左右来回走动，不追击玩家。
+// 碰到平台边界（leftBound / rightBound）时自动转向。
 // ──────────────────────────────────────────────
 void NpcSystem::updateSnail(CharacterObject& npc, const CharacterObject* player, int deltaMs, const WorldTuning& tuning) {
+    Q_UNUSED(player);
     Q_UNUSED(tuning);
     // 递减攻击冷却（用于接触伤害），确保每帧都在减少
     if (npc.attackCooldownRemainingMs > 0) {
         npc.attackCooldownRemainingMs = std::max(0, npc.attackCooldownRemainingMs - deltaMs);
     }
 
-    // 玩家不存在 / 玩家死亡 / 蜗牛正在缩壳或受击 → 静止
-    if (!player || !player->alive || npc.state == QStringLiteral("hide") || npc.state == QStringLiteral("hit")) {
+    // 缩壳或死亡 → 静止
+    if (npc.state == QStringLiteral("hide") || npc.state == QStringLiteral("dead")) {
         npc.moveDirection = 0;
         npc.velocity.setX(0);
         return;
     }
-
-    // 计算玩家中心与蜗牛中心的水平距离
-    const qreal playerCenterX = player->position.x() + player->charWidth / 2.0;
-    const qreal npcCenterX = npc.position.x() + npc.charWidth / 2.0;
-    const qreal dx = playerCenterX - npcCenterX;
-    const qreal distance = std::abs(dx);
-
-    // 超出检测范围 → 静止
-    if (distance > npc.detectionRange) {
+    // 受击 → 保留击退速度
+    if (npc.state == QStringLiteral("hit")) {
         npc.moveDirection = 0;
-        npc.velocity.setX(0);
         return;
     }
 
-    // 最小停止距离：防止蜗牛贴脸时方向频繁翻转造成振荡
-    if (distance < 20.0) {
-        npc.moveDirection = 0;
-        npc.velocity.setX(0);
-        return;
+    // ── 平台往返巡逻 ──
+    const qreal leftBound = npc.spawnX - npc.patrolRange;
+    const qreal rightBound = npc.spawnX + npc.patrolRange;
+
+    // 到达左边界 → 向右转
+    if (npc.position.x() <= leftBound) {
+        npc.facingLeft = false;
+        npc.moveDirection = 1;
+    }
+    // 到达右边界 → 向左转
+    else if (npc.position.x() >= rightBound) {
+        npc.facingLeft = true;
+        npc.moveDirection = -1;
+    }
+    // 在范围内，保持当前方向
+    else if (npc.moveDirection == 0) {
+        // 刚出生，默认向右走
+        npc.facingLeft = false;
+        npc.moveDirection = 1;
     }
 
-    // 朝玩家方向移动
-    npc.facingLeft = dx < 0;
-    npc.moveDirection = dx < 0 ? -1 : 1;
     npc.velocity.setX(npc.moveDirection * npc.npcMoveSpeed);
 }
 
@@ -70,9 +68,14 @@ void NpcSystem::updateNpc(CharacterObject& npc, const CharacterObject* player, i
         npc.attackCooldownRemainingMs = std::max(0, npc.attackCooldownRemainingMs - deltaMs);
     }
 
-    if (!player || !player->alive || npc.state == QStringLiteral("hit")) {
+    if (!player || !player->alive) {
         npc.moveDirection = 0;
         npc.velocity.setX(0);
+        return;
+    }
+    if (npc.state == QStringLiteral("hit")) {
+        npc.moveDirection = 0;
+        // hit 状态保留 velocity（击退效果）
         return;
     }
 

@@ -3,6 +3,7 @@
 #include "domain/CharacterSystem.h"
 #include "domain/CollisionSystem.h"
 
+#include <QLineF>
 #include <algorithm>
 
 namespace skybound {
@@ -12,9 +13,38 @@ CharacterObject* player(QHash<QString, CharacterObject>& characters) {
     auto it = characters.find(QStringLiteral("player"));
     return it == characters.end() ? nullptr : &it.value();
 }
+
+/// 检测线段是否被地形阻挡
+/// 用多点采样替代 line-rect 边缘相交检测，防止细长地形块的角落穿透
+/// 在 from→to 连线上均匀采样 N 个点，检查是否有任何点落在 solid 地形内部
+bool isLineBlockedByTerrain(const QPointF& from, const QPointF& to, const QList<TerrainPiece>& terrain) {
+    for (const auto& piece : terrain) {
+        if (!piece.solid) continue;
+        const QRectF& r = piece.rect;
+        // 粗略包围盒过滤：地形完全在两端之外则跳过
+        if (r.right() < std::min(from.x(), to.x()) || r.left() > std::max(from.x(), to.x())) {
+            continue;
+        }
+        if (r.bottom() < std::min(from.y(), to.y()) || r.top() > std::max(from.y(), to.y())) {
+            continue;
+        }
+        // 多点采样：在连线上均匀取 8 个点，检查是否落在 terrain 矩形内
+        constexpr int kSamples = 8;
+        for (int i = 0; i <= kSamples; ++i) {
+            const qreal t = qreal(i) / qreal(kSamples);
+            const QPointF pt(
+                from.x() + (to.x() - from.x()) * t,
+                from.y() + (to.y() - from.y()) * t);
+            if (r.contains(pt)) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
 } // namespace
 
-CombatResult CombatSystem::applyDamageToPlayer(CharacterObject& playerCharacter, int damage) {
+CombatResult CombatSystem::applyDamageToPlayer(CharacterObject& playerCharacter, int damage, const QPointF& attackerPos) {
     CombatResult result;
     if (!playerCharacter.alive) {
         return result;
@@ -35,12 +65,16 @@ CombatResult CombatSystem::applyDamageToPlayer(CharacterObject& playerCharacter,
         return result;
     }
 
-    // 玩家受伤后的受击状态
+    // 玩家受伤后的受击状态 + 击退
     if (playerCharacter.state == QStringLiteral("hit")) {
         playerCharacter.state = QString();
         playerCharacter.actionDurationMs = 0;
     }
     CharacterSystem::setState(playerCharacter, QStringLiteral("hit"), 4, 90, 360);
+    // 击退：远离攻击者
+    const qreal knockDir = (attackerPos.x() < playerCharacter.position.x()) ? 1.0 : -1.0;
+    playerCharacter.velocity.setX(knockDir * 8.0);
+    playerCharacter.velocity.setY(-3.0);
     result.sounds.push_back(QStringLiteral("player.hurt"));
     return result;
 }
@@ -48,6 +82,7 @@ CombatResult CombatSystem::applyDamageToPlayer(CharacterObject& playerCharacter,
 CombatResult CombatSystem::checkAttackHits(
     CharacterObject& attacker,
     QHash<QString, CharacterObject>& characters,
+    const QList<TerrainPiece>& terrain,
     QSet<QString>& resolvedAttackTokens) {
     CombatResult result;
     if (!attacker.alive || !CollisionSystem::canUseBox(attacker.attackBox)) {
@@ -70,19 +105,40 @@ CombatResult CombatSystem::checkAttackHits(
                 continue;
             }
 
+            // 穿墙检测：攻击者到目标的连线被地形阻挡则跳过
+            {
+                const QPointF attackerCenter(attacker.position.x() + attacker.charWidth / 2.0, attacker.position.y() + attacker.charHeight / 2.0);
+                const QPointF targetCenter(target.position.x() + target.charWidth / 2.0, target.position.y() + target.charHeight / 2.0);
+                if (isLineBlockedByTerrain(attackerCenter, targetCenter, terrain)) {
+                    continue;
+                }
+            }
+
             // ──────────────────────────────────────────────
-            // 蜗牛免疫：打中蜗牛时触发缩壳动画，不造成实际伤害
+            // 蜗牛受击：先给击退，再触发缩壳动画
             // ──────────────────────────────────────────────
             if (target.animationFamily == QStringLiteral("snail")) {
+                // 击退：远离攻击者
+                {
+                    const qreal knockDir = (attacker.position.x() < target.position.x()) ? 1.0 : -1.0;
+                    target.velocity.setX(knockDir * 6.0);
+                    target.velocity.setY(-3.0);
+                }
                 CharacterSystem::setState(target, QStringLiteral("hide"), 12, 60, 480);  // 缩壳 480ms
                 result.sounds.push_back(QStringLiteral("enemy.hurt.1"));                 // 播放受击音效（无伤害）
                 return result;
             }
 
-            // 普通敌人 — 扣血逻辑
+            // 普通敌人 — 扣血逻辑 + 击退
             resolvedAttackTokens.insert(token);
             target.hp = std::max(0, target.hp - attacker.attackDamage);
             result.damageCountDelta = 1;
+            // 击退：远离攻击者
+            {
+                const qreal knockDir = (attacker.position.x() < target.position.x()) ? 1.0 : -1.0;
+                target.velocity.setX(knockDir * 8.0);
+                target.velocity.setY(-3.0);
+            }
             if (target.hp == 0) {
                 target.alive = false;
                 CharacterSystem::setState(target, QStringLiteral("dead"), 1, 90);
@@ -101,8 +157,17 @@ CombatResult CombatSystem::checkAttackHits(
         return result;
     }
 
+    // 穿墙检测（敌人攻击玩家）
+    {
+        const QPointF attackerCenter(attacker.position.x() + attacker.charWidth / 2.0, attacker.position.y() + attacker.charHeight / 2.0);
+        const QPointF playerCenter(p->position.x() + p->charWidth / 2.0, p->position.y() + p->charHeight / 2.0);
+        if (isLineBlockedByTerrain(attackerCenter, playerCenter, terrain)) {
+            return result;
+        }
+    }
+
     resolvedAttackTokens.insert(token);
-    return applyDamageToPlayer(*p, attacker.attackDamage);
+    return applyDamageToPlayer(*p, attacker.attackDamage, attacker.position);
 }
 
 // ──────────────────────────────────────────────
@@ -146,7 +211,7 @@ CombatResult CombatSystem::checkContactDamage(
 
         // 造成接触伤害并进入冷却
         character.attackCooldownRemainingMs = character.attackCooldownMs;
-        result = applyDamageToPlayer(*p, character.attackDamage);
+        result = applyDamageToPlayer(*p, character.attackDamage, character.position);
         break;  // 每帧只触发一次接触伤害
     }
     return result;

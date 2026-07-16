@@ -12,9 +12,10 @@ public:
     static CombatResult checkAttackHits(
         CharacterObject& attacker,
         QHash<QString, CharacterObject>& characters,
+        const QList<TerrainPiece>& terrain,
         QSet<QString>& resolvedAttackTokens);
 
-    static CombatResult applyDamageToPlayer(CharacterObject& playerCharacter, int damage);
+    static CombatResult applyDamageToPlayer(CharacterObject& playerCharacter, int damage, const QPointF& attackerPos);
 
     // ──────────────────────────────────────────────
     // 蜗牛接触伤害

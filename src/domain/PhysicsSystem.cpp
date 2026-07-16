@@ -28,6 +28,10 @@ void PhysicsSystem::updateCharacterPhysics(
         character.velocity.setX(0);
     } else if (character.state == QStringLiteral("roll")) {
         character.position.rx() += character.velocity.x() * stepScale;
+    } else if (character.state == QStringLiteral("hit")) {
+        // hit 状态：保留击退速度，只衰减
+        character.velocity.setX(character.velocity.x() * 0.85);
+        character.position.rx() += character.velocity.x() * stepScale;
     } else if (isPlayer) {
         character.velocity.setX(character.moveDirection * tuning.moveSpeed);
         character.position.rx() += character.velocity.x() * stepScale;

@@ -92,7 +92,8 @@ void DomainSystemsTest::damagesPlayerThroughDomainResult() {
     player.hp = 10;
     player.maxHp = 10;
 
-    const auto result = CombatSystem::applyDamageToPlayer(player, 10);
+    const QPointF dummyAttackerPos(0, 0);
+    const auto result = CombatSystem::applyDamageToPlayer(player, 10, dummyAttackerPos);
 
     QVERIFY(result.playerStatsChanged);
     QVERIFY(!player.alive);

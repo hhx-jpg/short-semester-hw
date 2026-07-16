@@ -33,6 +33,8 @@ add_executable(SkyboundTactics WIN32
     src/domain/WorldProcessor.cpp
     src/viewmodel/GameWorldViewModel.h
     src/viewmodel/GameWorldViewModel.cpp
+    src/viewmodel/CharacterListModel.h
+    src/viewmodel/CharacterListModel.cpp
 )
 
 target_include_directories(SkyboundTactics PRIVATE
@@ -63,6 +65,7 @@ qt_add_resources(SkyboundTactics sprite_resources
         resources/background.png
         resources/background2.png
         resources/ui_heart.png
+        resources/stone_stage.png
         resources/background3.png
         resources/background_forest2.png
         resources/background_forest3.png

@@ -14,101 +14,7 @@ ApplicationWindow {
     title: "Skybound Tactics - 平台动作原型"
     color: "black"
 
-    MediaPlayer {
-        id: bgmPlayer
-        source: resourceManager.audio("bgm.factory")
-        loops: MediaPlayer.Infinite
-        audioOutput: AudioOutput {
-            volume: 0.35
-        }
-    }
-
-    MediaPlayer {
-        id: actionSound
-        audioOutput: AudioOutput {
-            volume: 0.85
-        }
-    }
-
-    MediaPlayer {
-        id: impactSound
-        audioOutput: AudioOutput {
-            volume: 0.9
-        }
-    }
-
-    MediaPlayer {
-        id: playerRunSound
-        source: resourceManager.audio("player.run")
-        loops: MediaPlayer.Infinite
-        audioOutput: AudioOutput {
-            volume: 0.45
-        }
-    }
-
-    MediaPlayer {
-        id: enemyRunSound
-        source: resourceManager.audio("enemy.run")
-        loops: MediaPlayer.Infinite
-        audioOutput: AudioOutput {
-            volume: 0.38
-        }
-    }
-
-    function playSound(key) {
-        if (key === "bgm.factory.start") {
-            bgmPlayer.play()
-            return
-        }
-        if (key === "bgm.factory.stop") {
-            bgmPlayer.stop()
-            return
-        }
-        if (key === "player.run.start") {
-            if (playerRunSound.playbackState !== MediaPlayer.PlayingState)
-                playerRunSound.play()
-            return
-        }
-        if (key === "player.run.stop") {
-            playerRunSound.stop()
-            return
-        }
-        if (key === "enemy.run.start") {
-            if (enemyRunSound.playbackState !== MediaPlayer.PlayingState)
-                enemyRunSound.play()
-            return
-        }
-        if (key === "enemy.run.stop") {
-            enemyRunSound.stop()
-            return
-        }
-
-        const source = resourceManager.audio(key)
-        if (source === "")
-            return
-
-        const player = key.indexOf("hurt") >= 0 || key.indexOf("dead") >= 0
-            ? impactSound
-            : actionSound
-        player.stop()
-        player.source = source
-        player.play()
-    }
-
-    Connections {
-        target: gameWorld
-
-        function onSoundRequested(key) {
-            root.playSound(key)
-        }
-
-        function onGameStateChanged() {
-            if (gameWorld.gameState !== "playing") {
-                playerRunSound.stop()
-                enemyRunSound.stop()
-            }
-        }
-    }
+    property bool testMode: false
 
     Rectangle {
         id: playField
@@ -117,10 +23,20 @@ ApplicationWindow {
         focus: true
         clip: true
 
-        Keys.onPressed: function(event) {
-            if (gameWorld.gameState !== "playing") {
-                return
+        property bool aimingUp: false
+        property bool aimingDown: false
+
+        function attackDirection() {
+            if (aimingUp) {
+                return "up"
             }
+            if (aimingDown) {
+                return "down"
+            }
+            return gameWorld.playerFacingLeft ? "left" : "right"
+        }
+
+        Keys.onPressed: function(event) {
             if (event.key === Qt.Key_A) {
                 gameWorld.playerRun(-1)
                 event.accepted = true
@@ -132,12 +48,12 @@ ApplicationWindow {
                 return
             }
             if (event.key === Qt.Key_W) {
-                gameWorld.setAimUpPressed(true)
+                aimingUp = true
                 event.accepted = true
                 return
             }
             if (event.key === Qt.Key_S) {
-                gameWorld.setAimDownPressed(true)
+                aimingDown = true
                 event.accepted = true
                 return
             }
@@ -158,10 +74,7 @@ ApplicationWindow {
             }
         }
 
-        Keys.onReleased: function(event) {
-            if (gameWorld.gameState !== "playing") {
-                return
-            }
+        Keys.onReleased: function(event) { //键盘输入
             if (event.isAutoRepeat) {
                 event.accepted = true
                 return
@@ -177,12 +90,12 @@ ApplicationWindow {
                 return
             }
             if (event.key === Qt.Key_W) {
-                gameWorld.setAimUpPressed(false)
+                aimingUp = false
                 event.accepted = true
                 return
             }
             if (event.key === Qt.Key_S) {
-                gameWorld.setAimDownPressed(false)
+                aimingDown = false
                 event.accepted = true
                 return
             }
@@ -191,7 +104,7 @@ ApplicationWindow {
         onWidthChanged: gameWorld.setViewport(width, height)
         onHeightChanged: gameWorld.setViewport(width, height)
 
-        Repeater {
+        Repeater {              //地图背景层
             model: gameWorld.mapLayers
 
             Image {
@@ -206,67 +119,66 @@ ApplicationWindow {
             }
         }
 
-        Repeater {
+        Repeater {              // 地形 - 石质地面纹理
             model: gameWorld.terrain
 
-            Rectangle {
+            Image {
                 x: modelData.x
                 y: modelData.y
                 width: modelData.width
                 height: modelData.height
-                visible: false
-                color: "#33ffffff"
-                border.color: "#99ffffff"
-                border.width: 1
+                source: "qrc:/resources/stone_stage.png"
+                fillMode: Image.Tile
                 z: 1
+                smooth: false
             }
         }
 
-        Timer {
+        Timer {                 //时钟
             interval: 16
-            running: gameWorld.gameState === "playing"
+            running: true
             repeat: true
             onTriggered: gameWorld.tick(interval)
         }
 
-        Repeater {
-            model: gameWorld.characters
+        Repeater {              //角色（玩家 + NPC）
+            model: gameWorld.characterModel
 
             Item {
                 id: characterItem
-                x: modelData.x
-                y: modelData.y
-                width: modelData.width
-                height: modelData.height
+                x: model.x
+                y: model.y
+                width: model.width
+                height: model.height
                 z: 2
                 clip: true
 
                 Item {
                     id: characterSprite
                     anchors.fill: parent
-                    clip: modelData.spriteIsSheet
+                    clip: model.spriteIsSheet
 
                     Image {
                         anchors.fill: parent
-                        visible: !modelData.spriteIsSheet
-                        source: modelData.spriteSource
+                        visible: !model.spriteIsSheet
+                        source: model.spriteSource
                         fillMode: Image.PreserveAspectFit
                         smooth: false
                     }
 
                     Image {
-                        readonly property int sheetFrameCount: Math.max(1, modelData.spriteFrameCount)
-                        readonly property real sourceFrameWidth: Math.max(1, modelData.spriteFrameWidth)
-                        readonly property real sourceFrameHeight: Math.max(1, modelData.spriteFrameHeight)
+                        readonly property int sheetFrameCount: Math.max(1, model.spriteFrameCount)
+                        readonly property real sourceFrameWidth: Math.max(1, model.spriteFrameWidth)
+                        readonly property real sourceFrameHeight: Math.max(1, model.spriteFrameHeight)
 
                         x: 0
                         y: 0
                         width: characterSprite.width
                         height: characterSprite.height
-                        visible: modelData.spriteIsSheet
-                        source: modelData.spriteSource
+                        visible: model.spriteIsSheet
+                        source: model.spriteSource
                         sourceClipRect: Qt.rect(
-                            modelData.spriteFrameIndex * sourceFrameWidth,
+                            model.spriteFrameIndex * sourceFrameWidth,
                             0,
                             sourceFrameWidth,
                             sourceFrameHeight)
@@ -277,7 +189,7 @@ ApplicationWindow {
                     transform: Scale {
                         origin.x: characterSprite.width / 2
                         origin.y: characterSprite.height / 2
-                        xScale: modelData.facingLeft ? 1 : -1
+                        xScale: model.facingLeft ? 1 : -1
                         yScale: 1
                     }
                 }
@@ -285,52 +197,46 @@ ApplicationWindow {
             }
         }
 
-        Repeater {
-            model: gameWorld.characters
+        Repeater {              //攻击特效叠加层（剑气/爆气等）
+            model: gameWorld.characterModel
 
             Item {
-                readonly property bool vfxIsSheet: modelData.vfxIsSheet
-                readonly property real baseVfxSize: modelData.attackVfxSize > 0 ? modelData.attackVfxSize : Math.max(modelData.attackBox.width, modelData.attackBox.height)
-                readonly property real vfxSize: modelData.vfxIsSheet ? baseVfxSize * 1.4 : baseVfxSize
-                readonly property int vfxFrameCount: Math.max(1, modelData.vfxFrameCount)
-                readonly property real sourceFrameWidth: Math.max(1, modelData.vfxFrameWidth)
-                readonly property real sourceFrameHeight: Math.max(1, modelData.vfxFrameHeight)
+                readonly property bool isRollVfx: model.rollAttack
+                readonly property bool beeAttackVfx: !isRollVfx && model.state === "attack" && model.kind === "enemy"
+                readonly property real baseVfxSize: model.attackVfxSize > 0 ? model.attackVfxSize : Math.max(model.attackBoxWidth, model.attackBoxHeight)
+                readonly property real vfxSize: beeAttackVfx ? baseVfxSize * 1.4 : baseVfxSize
+                readonly property int vfxFrameCount: beeAttackVfx ? model.vfxFrameCount : 5
 
-                x: modelData.attackBox.x + (modelData.attackBox.width - vfxSize) / 2
-                y: modelData.attackBox.y + (modelData.attackBox.height - vfxSize) / 2
-                width: vfxSize
-                height: vfxSize
+                // Roll attack: 贴合攻击红框（细长），普通攻击: 正方形居中
+                x: isRollVfx ? model.attackBoxX : model.attackBoxX + (model.attackBoxWidth - vfxSize) / 2
+                y: isRollVfx ? model.attackBoxY : model.attackBoxY + (model.attackBoxHeight - vfxSize) / 2
+                width: isRollVfx ? model.attackBoxWidth : vfxSize
+                height: isRollVfx ? model.attackBoxHeight : vfxSize
                 z: 3
-                visible: (modelData.state === "attack" || modelData.state === "skill") && modelData.vfxSource !== ""
+                visible: (model.state === "attack" || model.state === "skill") && (model.kind === "player" || beeAttackVfx)
                 clip: true
 
+                // 淡蓝色剑气（5帧精灵表），roll attack 时拉伸适配红框
                 Image {
-                    x: 0
+                    x: -Math.min(model.frameIndex, parent.vfxFrameCount - 1) * parent.width
                     y: 0
-                    width: parent.vfxSize
-                    height: parent.vfxSize
-                    source: modelData.vfxSource
-                    sourceClipRect: parent.vfxIsSheet
-                        ? Qt.rect(
-                            modelData.vfxFrameIndex * parent.sourceFrameWidth,
-                            0,
-                            parent.sourceFrameWidth,
-                            parent.sourceFrameHeight)
-                        : Qt.rect(0, 0, 0, 0)
+                    width: parent.width * parent.vfxFrameCount
+                    height: parent.height
+                    source: model.vfxSource
                     fillMode: Image.Stretch
                     smooth: false
 
                     transform: Scale {
                         origin.x: width / 2
                         origin.y: height / 2
-                        xScale: 1
+                        xScale: parent.beeAttackVfx && model.attackDirection === "left" ? -1 : 1
                         yScale: 1
                     }
                 }
             }
         }
 
-        Repeater {
+        Repeater {              // 调试碰撞箱（绿/白/红框）
             model: gameWorld.debugBoxes
 
             Rectangle {
@@ -338,7 +244,7 @@ ApplicationWindow {
                 y: modelData.y
                 width: modelData.width
                 height: modelData.height
-                visible: modelData.active
+                visible: modelData.active && root.testMode
                 color: modelData.boxType === "terrain" ? "#6600ff00" : "transparent"
                 border.width: 2
                 opacity: 0.9
@@ -351,7 +257,7 @@ ApplicationWindow {
                 }
             }
         }
-
+            //UI元素
         // 血量心形显示
         Item {
             x: 14
@@ -437,6 +343,7 @@ ApplicationWindow {
             font.pixelSize: 22
             font.bold: true
             z: 30
+            visible: root.testMode
         }
 
         Text {
@@ -450,9 +357,10 @@ ApplicationWindow {
             font.pixelSize: 14
             font.family: "monospace"
             z: 30
+            visible: root.testMode
         }
 
-        MouseArea {
+        MouseArea {             //鼠标输入
             anchors.fill: parent
             acceptedButtons: Qt.LeftButton | Qt.RightButton
             hoverEnabled: true
@@ -461,212 +369,19 @@ ApplicationWindow {
             }
             onPressed: function(mouse) {
                 playField.forceActiveFocus()
-                if (gameWorld.gameState !== "playing") {
-                    return
-                }
                 if (mouse.button === Qt.RightButton) {
                     gameWorld.setChargePressed(true)
                 }
             }
             onReleased: function(mouse) {
-                if (gameWorld.gameState !== "playing") {
-                    return
-                }
                 if (mouse.button === Qt.RightButton) {
-                    gameWorld.releaseAttack()
-                }
-            }
-        }
-
-        Rectangle {
-            id: startScreen
-            anchors.fill: parent
-            visible: gameWorld.gameState === "start"
-            color: "#d9141824"
-            z: 1000
-
-            Rectangle {
-                width: 440
-                height: 360
-                anchors.centerIn: parent
-                radius: 18
-                color: "#e6212939"
-                border.color: "#7fd7e8ff"
-                border.width: 2
-
-                Column {
-                    anchors.centerIn: parent
-                    width: 280
-                    spacing: 28
-
-                    Text {
-                        width: parent.width
-                        horizontalAlignment: Text.AlignHCenter
-                        text: "SKYBOUND TACTICS"
-                        color: "white"
-                        font.pixelSize: 34
-                        font.bold: true
+                    var wasCharged = gameWorld.chargeProgress >= 1.0
+                    if (wasCharged) {
+                        gameWorld.playerBurstAttack()
+                    } else {
+                        gameWorld.playerAttack(playField.attackDirection())
                     }
-
-                    Text {
-                        width: parent.width
-                        horizontalAlignment: Text.AlignHCenter
-                        text: "平台动作原型"
-                        color: "#b8c7db"
-                        font.pixelSize: 18
-                    }
-
-                    Button {
-                        id: startButton
-                        width: parent.width
-                        height: 58
-                        text: "开始游戏"
-                        font.pixelSize: 22
-                        font.bold: true
-                        onClicked: {
-                            gameWorld.startGame()
-                            playField.forceActiveFocus()
-                        }
-                    }
-
-                    Button {
-                        width: parent.width
-                        height: 58
-                        text: "退出游戏"
-                        font.pixelSize: 22
-                        onClicked: Qt.quit()
-                    }
-                }
-            }
-
-            onVisibleChanged: {
-                if (visible) {
-                    startButton.forceActiveFocus()
-                }
-            }
-        }
-
-        Rectangle {
-            id: deathScreen
-            anchors.fill: parent
-            visible: gameWorld.gameState === "dead"
-            color: "#c9000000"
-            z: 1000
-
-            Rectangle {
-                width: 430
-                height: 290
-                anchors.centerIn: parent
-                radius: 18
-                color: "#eb281d25"
-                border.color: "#d86b6b"
-                border.width: 2
-
-                Column {
-                    anchors.centerIn: parent
-                    width: 280
-                    spacing: 30
-
-                    Text {
-                        width: parent.width
-                        horizontalAlignment: Text.AlignHCenter
-                        text: "角色已死亡"
-                        color: "#ffdddd"
-                        font.pixelSize: 36
-                        font.bold: true
-                    }
-
-                    Text {
-                        width: parent.width
-                        horizontalAlignment: Text.AlignHCenter
-                        text: "本次造成伤害：" + gameWorld.damageCount
-                        color: "#d8c7c7"
-                        font.pixelSize: 18
-                    }
-
-                    Button {
-                        id: returnButton
-                        width: parent.width
-                        height: 58
-                        text: "返回开始界面"
-                        font.pixelSize: 21
-                        font.bold: true
-                        onClicked: gameWorld.returnToStartMenu()
-                    }
-                }
-            }
-
-            onVisibleChanged: {
-                if (visible) {
-                    returnButton.forceActiveFocus()
-                }
-            }
-        }
-
-        // ── 通关界面 ──
-        Rectangle {
-            id: winScreen
-            anchors.fill: parent
-            visible: gameWorld.gameState === "win"
-            color: "#c9001a2e"
-            z: 1000
-
-            Rectangle {
-                width: 460
-                height: 320
-                anchors.centerIn: parent
-                radius: 18
-                color: "#e61c3347"
-                border.color: "#7fd7e8ff"
-                border.width: 2
-
-                Column {
-                    anchors.centerIn: parent
-                    width: 300
-                    spacing: 24
-
-                    Text {
-                        width: parent.width
-                        horizontalAlignment: Text.AlignHCenter
-                        text: "🎉 恭喜通关！"
-                        color: "#ffd700"
-                        font.pixelSize: 38
-                        font.bold: true
-                    }
-
-                    Text {
-                        width: parent.width
-                        horizontalAlignment: Text.AlignHCenter
-                        text: "你成功到达了森林的顶端！"
-                        color: "#b8d4e8"
-                        font.pixelSize: 18
-                        wrapMode: Text.WordWrap
-                    }
-
-                    Text {
-                        width: parent.width
-                        horizontalAlignment: Text.AlignHCenter
-                        text: "本次造成伤害：<b>" + gameWorld.damageCount + "</b>"
-                        color: "white"
-                        font.pixelSize: 20
-                        textFormat: Text.RichText
-                    }
-
-                    Button {
-                        id: winReturnButton
-                        width: parent.width
-                        height: 58
-                        text: "返回开始界面"
-                        font.pixelSize: 21
-                        font.bold: true
-                        onClicked: gameWorld.returnToStartMenu()
-                    }
-                }
-            }
-
-            onVisibleChanged: {
-                if (visible) {
-                    winReturnButton.forceActiveFocus()
+                    gameWorld.setChargePressed(false)
                 }
             }
         }
@@ -674,6 +389,254 @@ ApplicationWindow {
         Component.onCompleted: {
             gameWorld.setViewport(width, height)
             forceActiveFocus()
+        }
+    }
+
+    // ── 开始界面 ──
+    Rectangle {
+        anchors.fill: parent
+        color: "#cc000000"
+        z: 200
+        visible: gameWorld.gameState === "start"
+
+        Column {
+            anchors.centerIn: parent
+            spacing: 40
+
+            Text {
+                anchors.horizontalCenter: parent.horizontalCenter
+                text: "Skybound Tactics"
+                color: "white"
+                font.pixelSize: 48
+                font.bold: true
+            }
+
+            Column {
+                anchors.horizontalCenter: parent.horizontalCenter
+                spacing: 20
+
+                Button {
+                    text: "正式开始"
+                    font.pixelSize: 22
+                    implicitWidth: 220
+                    implicitHeight: 50
+                    onClicked: {
+                        root.testMode = false
+                        gameWorld.startGame()
+                        forceActiveFocus()
+                    }
+                }
+
+                Button {
+                    text: "测试版"
+                    font.pixelSize: 22
+                    implicitWidth: 220
+                    implicitHeight: 50
+                    onClicked: {
+                        root.testMode = true
+                        gameWorld.startGame()
+                        forceActiveFocus()
+                    }
+                }
+
+                Button {
+                    text: "退出游戏"
+                    font.pixelSize: 22
+                    implicitWidth: 220
+                    implicitHeight: 50
+                    contentItem: Text {
+                        text: "退出游戏"
+                        color: "black"
+                        font.pixelSize: 22
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                    }
+                    onClicked: Qt.quit()
+                }
+            }
+        }
+    }
+
+    // ── 死亡界面 ──
+    Rectangle {
+        anchors.fill: parent
+        color: "#aa000000"
+        z: 200
+        visible: gameWorld.gameState === "dead"
+
+        Text {
+            anchors.centerIn: parent
+            text: "你死了"
+            color: "#ff4444"
+            font.pixelSize: 48
+            font.bold: true
+        }
+
+        Text {
+            anchors.horizontalCenter: parent.horizontalCenter
+            anchors.top: parent.top + parent.height * 0.55
+            text: "造成伤害: " + gameWorld.damageCount
+            color: "#ffaa44"
+            font.pixelSize: 24
+            font.bold: true
+            visible: root.testMode
+        }
+
+        Text {
+            anchors.horizontalCenter: parent.horizontalCenter
+            anchors.top: parent.top + parent.height * 0.6
+            text: "点击重新开始"
+            color: "#aaaaaa"
+            font.pixelSize: 20
+        }
+
+        MouseArea {
+            anchors.fill: parent
+            onClicked: {
+                gameWorld.returnToStartMenu()
+                forceActiveFocus()
+            }
+        }
+    }
+
+    // ── 通关界面 ──
+    Rectangle {
+        anchors.fill: parent
+        color: "#aa000000"
+        z: 200
+        visible: gameWorld.gameState === "win"
+
+        Text {
+            anchors.centerIn: parent
+            text: "恭喜通关！"
+            color: "#44ff44"
+            font.pixelSize: 48
+            font.bold: true
+        }
+
+        Text {
+            anchors.horizontalCenter: parent.horizontalCenter
+            anchors.top: parent.top + parent.height * 0.55
+            text: "造成伤害: " + gameWorld.damageCount
+            color: "#ffaa44"
+            font.pixelSize: 24
+            font.bold: true
+            visible: root.testMode
+        }
+
+        Text {
+            anchors.horizontalCenter: parent.horizontalCenter
+            anchors.top: parent.top + parent.height * 0.6
+            text: "点击返回主菜单"
+            color: "#aaaaaa"
+            font.pixelSize: 20
+        }
+
+        MouseArea {
+            anchors.fill: parent
+            onClicked: {
+                gameWorld.returnToStartMenu()
+                forceActiveFocus()
+            }
+        }
+    }
+
+    // ── 音效播放器 ──
+    MediaPlayer {
+        id: actionSound
+        audioOutput: AudioOutput {
+            volume: 0.85
+        }
+    }
+
+    MediaPlayer {
+        id: impactSound
+        audioOutput: AudioOutput {
+            volume: 0.9
+        }
+    }
+
+    MediaPlayer {
+        id: playerRunSound
+        source: resourceManager.audio("player.run")
+        loops: MediaPlayer.Infinite
+        audioOutput: AudioOutput {
+            volume: 0.45
+        }
+    }
+
+    MediaPlayer {
+        id: enemyRunSound
+        source: resourceManager.audio("enemy.run")
+        loops: MediaPlayer.Infinite
+        audioOutput: AudioOutput {
+            volume: 0.38
+        }
+    }
+
+    function playSound(key) {
+        if (key === "player.run.start") {
+            if (playerRunSound.playbackState !== MediaPlayer.PlayingState)
+                playerRunSound.play()
+            return
+        }
+        if (key === "player.run.stop") {
+            playerRunSound.stop()
+            return
+        }
+        if (key === "enemy.run.start") {
+            if (enemyRunSound.playbackState !== MediaPlayer.PlayingState)
+                enemyRunSound.play()
+            return
+        }
+        if (key === "enemy.run.stop") {
+            enemyRunSound.stop()
+            return
+        }
+
+        const source = resourceManager.audio(key)
+        if (source === "")
+            return
+
+        const player = key.indexOf("hurt") >= 0 || key.indexOf("dead") >= 0
+            ? impactSound
+            : actionSound
+        player.stop()
+        player.source = source
+        player.play()
+    }
+
+    Connections {
+        target: gameWorld
+        function onSoundRequested(key) {
+            root.playSound(key)
+        }
+        function onGameStateChanged() {
+            if (gameWorld.gameState !== "playing") {
+                playerRunSound.stop()
+                enemyRunSound.stop()
+            }
+        }
+    }
+
+    // ── BGM 播放器 ──
+    MediaPlayer {
+        id: bgmPlayer
+        source: resourceManager.audio("bgm.factory")
+        loops: MediaPlayer.Infinite
+        audioOutput: AudioOutput {
+            volume: 0.35
+        }
+    }
+
+    Connections {
+        target: gameWorld
+        function onGameStateChanged() {
+            if (gameWorld.gameState === "playing") {
+                bgmPlayer.play()
+            } else {
+                bgmPlayer.stop()
+            }
         }
     }
 }

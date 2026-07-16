@@ -70,9 +70,11 @@ CharacterObject CharacterFactory::createSnail(qreal x, qreal y, const WorldTunin
     snail.detectionRange = 400;         // 检测到玩家的距离
     snail.attackRange = 0;              // 不主动攻击，靠接触伤害系统
     snail.npcMoveSpeed = 1.0;           // 慢速移动
-    snail.charWidth = 46;               // 蜗牛实际渲染宽度（像素）
+    snail.charWidth = 32;               // 蜗牛渲染宽度（像素），与精灵表帧宽一致
     snail.charHeight = 32;              // 蜗牛实际渲染高度（像素）
     snail.position = QPointF(x, y);
+    snail.spawnX = x;               // 记录出生 X 坐标（巡逻用）
+    snail.patrolRange = 80;         // 巡逻范围半宽
     snail.facingLeft = true;
     CharacterSystem::setState(snail, QStringLiteral("idle"), 12, 120);  // 12 帧行走循环
     CollisionSystem::updateCollisionBoxes(snail, tuning);

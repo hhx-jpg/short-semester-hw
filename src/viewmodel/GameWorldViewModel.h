@@ -12,11 +12,12 @@
 
 namespace skybound {
 
+class CharacterListModel;
 class ResourceManager;
 
 class GameWorldViewModel : public QObject {
     Q_OBJECT
-    Q_PROPERTY(QVariantList characters READ characters NOTIFY charactersChanged)
+    Q_PROPERTY(CharacterListModel* characterModel READ characterModel CONSTANT)
     Q_PROPERTY(QVariantList mapLayers READ mapLayers NOTIFY mapLayersChanged)
     Q_PROPERTY(QVariantList terrain READ terrain NOTIFY terrainChanged)
     Q_PROPERTY(QVariantList debugBoxes READ debugBoxes NOTIFY debugBoxesChanged)
@@ -32,11 +33,12 @@ class GameWorldViewModel : public QObject {
     Q_PROPERTY(int playerHeartCount READ playerHeartCount NOTIFY playerStatsChanged)
     Q_PROPERTY(qreal chargeProgress READ chargeProgress NOTIFY chargeProgressChanged)
     Q_PROPERTY(QString gameState READ gameState NOTIFY gameStateChanged)
+    Q_PROPERTY(bool playerFacingLeft READ playerFacingLeft NOTIFY playerStatsChanged)
 
 public:
     explicit GameWorldViewModel(const ResourceManager& resources, QObject* parent = nullptr);
 
-    QVariantList characters() const;
+    CharacterListModel* characterModel() const { return characterModel_; }
     QVariantList mapLayers() const;
     QVariantList terrain() const;
     QVariantList debugBoxes() const;
@@ -52,6 +54,7 @@ public:
     int playerHeartCount() const;
     qreal chargeProgress() const;
     QString gameState() const;
+    bool playerFacingLeft() const;
 
     Q_INVOKABLE void startGame();
     Q_INVOKABLE void returnToStartMenu();
@@ -73,7 +76,6 @@ public:
 
 signals:
     void worldChanged();
-    void charactersChanged();
     void mapLayersChanged();
     void terrainChanged();
     void debugBoxesChanged();
@@ -104,9 +106,9 @@ private:
     QVariantMap rectToVariant(const QRectF& rect) const;
     QVariantMap pointToVariant(const QPointF& point) const;
     QVariantMap boxToVariant(const CollisionBox& box) const;
-    QVariantMap characterToVariant(const CharacterObject& character) const;
 
     const ResourceManager& resources_;
+    CharacterListModel* characterModel_ = nullptr;
     SceneId currentScene_ = SceneId::OriginalFactory;
     WorldTuning tuning_;
     qreal viewportWidth_ = 1200;

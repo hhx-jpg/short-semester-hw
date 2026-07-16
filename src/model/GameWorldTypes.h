@@ -3,6 +3,7 @@
 #include <QList>
 #include <QPointF>
 #include <QRectF>
+#include <QSet>
 #include <QString>
 #include <QStringList>
 
@@ -26,7 +27,7 @@ struct CollisionBox {
     bool active = true;
 };
 
-struct CharacterObject {
+struct CharacterObject {        //角色具体属性
     QString id;
     QString kind;
     int hp = 100;
@@ -57,27 +58,30 @@ struct CharacterObject {
     qreal detectionRange = 600;
     qreal attackRange = 95;
     qreal npcMoveSpeed = 2.2;
-    qreal charWidth = 90;      // 角色渲染宽度（像素），默认 90，蜗牛等小体型可单独设置
-    qreal charHeight = 90;     // 角色渲染高度（像素），默认 90
+    qreal spawnX = 0;          // 出生 X 坐标（用于蜗牛巡逻）
+    qreal patrolRange = 80;    // 巡逻范围半宽
+    bool immobilized = false;
+    qreal charWidth = 90;          // 角色渲染宽度（像素）
+    qreal charHeight = 90;         // 角色渲染高度（像素）
     CollisionBox hurtbox;
     CollisionBox attackBox;
 };
 
-struct TerrainPiece {
+struct TerrainPiece {        //地形具体属性 
     QString id;
     QString kind;
     QRectF rect;
     bool solid = true;
 };
 
-struct MapLayer {
+struct MapLayer {        //地图具体属性
     QString id;
     QString imageKey;
     QRectF rect;
     qreal opacity = 1.0;
 };
 
-struct WorldTuning {
+struct WorldTuning {        //全局调参
     qreal gravity = 0.62;
     qreal jumpVelocity = -13.0;
     qreal maxFallVelocity = 16.0;
@@ -116,37 +120,30 @@ struct WorldEvents {
     bool viewportChanged = false;
 };
 
-struct CombatResult {
+// CombatSystem 返回给 ViewModel 的结果，避免通过 mutable 引用修改 ViewModel 内部状态
+struct CombatResult {        //战斗结果 
+    QSet<QString> resolvedTokens;
     int damageCountDelta = 0;
     QStringList sounds;
     bool playerStatsChanged = false;
 };
 
-struct SceneSwitchRequest {
-    bool pending = false;
+struct SceneSwitchRequest {        //场景切换请求
+    bool pending = false;           
     SceneId scene = SceneId::OriginalFactory;
     EntrySide entrySide = EntrySide::Left;
 };
 
-// ──────────────────────────────────────────────
-// 怪物出生点配置
-//
-// 每个 MobSpawn 定义一张地图上一个怪物的：
-//   - mobType : 怪物类型字符串，传给 CharacterFactory::createByType()
-//              目前支持："small_bee"（小蜜蜂）、"snail"（蜗牛）
-//   - x       : 出生位置 X 坐标（相对于场景左边界）
-//   - y       : 出生位置 Y 坐标（0 表示自动放置在最宽地形块上）
-// ──────────────────────────────────────────────
 struct MobSpawn {
-    QString mobType;   // 怪物类型："small_bee" / "snail"
-    qreal x = 0;       // 出生 X 坐标
-    qreal y = 0;       // 出生 Y 坐标（0 = 自动放置在地形上）
+    QString mobType;
+    qreal x = 0;
+    qreal y = 0;
 };
 
-struct SceneBuildResult {
+struct SceneBuildResult {        //场景构建结果
     QList<MapLayer> mapLayers;
     QList<TerrainPiece> terrain;
-    QList<MobSpawn> mobSpawns;   // 本场景的怪物出生点列表
+    QList<MobSpawn> mobSpawns;
     qreal playableLeft = 0;
     qreal playableRight = 0;
 };

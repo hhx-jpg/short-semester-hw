@@ -10,14 +10,13 @@ void CollisionSystem::updateCollisionBoxes(CharacterObject& character, const Wor
 
     // ──────────────────────────────────────────────
     // 蜗牛 hurtbox 特殊处理
-    // 蜗牛体型只有 46×32（vs 玩家/蜜蜂的 90×90），
-    // 使用默认的 enemy hurtbox（44×72）会导致碰撞箱远大于实际身体。
-    // 这里直接使用 charWidth/charHeight 来计算贴合身体的 hurtbox。
+    // 蜗牛渲染尺寸 32×32，与精灵表帧尺寸一致。
+    // hurtbox 固定为 42×32，比渲染尺寸稍大以保证碰撞判定。
     // ──────────────────────────────────────────────
     if (character.animationFamily == QStringLiteral("snail")) {
-        hurtOffsetX = 2;                     // 左右各留 2px 边距
+        hurtOffsetX = -5;                    // 向左扩展 5px，让 hurtbox 覆盖渲染区域
         hurtOffsetY = 0;                     // 顶部对齐
-        hurtWidth = character.charWidth - 4; // 宽度 = 46 - 4 = 42
+        hurtWidth = 42;                      // 固定宽度 42px（覆盖实际身体范围）
         hurtHeight = character.charHeight;   // 高度 = 32
     } else {
         hurtOffsetX = isEnemy ? tuning.enemyHurtboxOffsetX : tuning.playerHurtboxOffsetX;
@@ -106,11 +105,11 @@ void CollisionSystem::resolveTerrainCollision(CharacterObject& character, const 
         }
 
         qreal hOffX, hOffY, hW, hH;
-        // 蜗牛体型小，地形碰撞也使用自身体积，防止与地面/平台错误对齐
+        // 蜗牛体型小，地形碰撞也使用固定较大体积，防止与地面/平台错误对齐
         if (character.animationFamily == QStringLiteral("snail")) {
-            hOffX = 2;
+            hOffX = -5;
             hOffY = 0;
-            hW = character.charWidth - 4;
+            hW = 42;
             hH = character.charHeight;
         } else {
             hOffX = character.kind == QStringLiteral("enemy") ? tuning.enemyHurtboxOffsetX : tuning.playerHurtboxOffsetX;

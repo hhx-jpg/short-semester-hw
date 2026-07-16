@@ -22,6 +22,7 @@ public:
 
     static CombatResult resolveCombat(
         QHash<QString, CharacterObject>& characters,
+        const QList<TerrainPiece>& terrain,
         QSet<QString>& resolvedAttackTokens);
 };
 

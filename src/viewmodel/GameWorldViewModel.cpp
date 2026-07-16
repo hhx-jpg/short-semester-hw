@@ -1,4 +1,5 @@
 #include "viewmodel/GameWorldViewModel.h"
+#include "viewmodel/CharacterListModel.h"
 
 #include "domain/CharacterFactory.h"
 #include "domain/CharacterSystem.h"
@@ -22,16 +23,9 @@ constexpr int kFrameMs = 16;
 
 GameWorldViewModel::GameWorldViewModel(const ResourceManager& resources, QObject* parent)
     : QObject(parent)
-    , resources_(resources) {
+    , resources_(resources)
+    , characterModel_(new CharacterListModel(this)) {
     initializeWorld();
-}
-
-QVariantList GameWorldViewModel::characters() const {
-    QVariantList result;
-    for (auto it = characters_.constBegin(); it != characters_.constEnd(); ++it) {
-        result.push_back(characterToVariant(it.value()));
-    }
-    return result;
 }
 
 QVariantList GameWorldViewModel::mapLayers() const {
@@ -102,8 +96,11 @@ int GameWorldViewModel::damageCount() const {
 
 QString GameWorldViewModel::currentScene() const {
     if (currentScene_ == SceneId::OriginalFactory) return QStringLiteral("original_factory");
+    if (currentScene_ == SceneId::Background2Factory) return QStringLiteral("background2_factory");
     if (currentScene_ == SceneId::CustomMap) return QStringLiteral("custom_map");
-    return QStringLiteral("background2_factory");
+    if (currentScene_ == SceneId::NewForestMap) return QStringLiteral("new_forest_map");
+    if (currentScene_ == SceneId::ForestMap3) return QStringLiteral("forest_map3");
+    return QStringLiteral("original_factory");
 }
 
 qreal GameWorldViewModel::mapAspect() const {
@@ -177,6 +174,11 @@ void GameWorldViewModel::returnToStartMenu() {
     emit gameStateChanged();
 }
 
+bool GameWorldViewModel::playerFacingLeft() const {
+    const auto* p = player();
+    return p ? p->facingLeft : true;
+}
+
 void GameWorldViewModel::reset() {
     damageCount_ = 0;
     chargePressed_ = false;
@@ -220,7 +222,7 @@ void GameWorldViewModel::tick(int deltaMs) {
 
     const bool sceneChanged = sceneSwitch.pending;
     applySceneSwitch(sceneSwitch);
-    applyCombatResult(WorldProcessor::resolveCombat(characters_, resolvedAttackTokens_), events);
+    applyCombatResult(WorldProcessor::resolveCombat(characters_, terrain_, resolvedAttackTokens_), events);
     updateMovementSounds(events);
 
     // ──────────────────────────────────────────────
@@ -265,6 +267,11 @@ void GameWorldViewModel::tick(int deltaMs) {
     }
 
     emitEvents(events);
+
+    // 通过 CharacterListModel（QAbstractListModel）同步角色数据，
+    // 只对实际变化的角色发射 dataChanged，避免 Repeater 每帧重建 delegate
+    characterModel_->syncFromCharacters(characters_, resources_);
+
     notifyWorldDataChanged(sceneChanged);
     emit worldChanged();
 }
@@ -277,7 +284,6 @@ void GameWorldViewModel::playerRun(int direction) {
     if (chargePressed_ || p->state == QStringLiteral("charge")) {
         p->moveDirection = 0;
         p->velocity.setX(0);
-        emit charactersChanged();
         return;
     }
 
@@ -291,7 +297,6 @@ void GameWorldViewModel::playerRun(int direction) {
     if ((p->state == QStringLiteral("idle") || p->state == QStringLiteral("run")) && p->moveDirection != 0) {
         CharacterSystem::setState(*p, QStringLiteral("run"), 8, 90);
     }
-    emit charactersChanged();
 }
 
 void GameWorldViewModel::playerStopRun(int direction) {
@@ -306,7 +311,6 @@ void GameWorldViewModel::playerStopRun(int direction) {
     if (p->state == QStringLiteral("run") && p->moveDirection == 0) {
         CharacterSystem::setState(*p, QStringLiteral("idle"), 1, 90);
     }
-    emit charactersChanged();
 }
 
 void GameWorldViewModel::playerJump() {
@@ -323,7 +327,6 @@ void GameWorldViewModel::playerJump() {
     p->velocity.setY(tuning_.jumpVelocity);
     CharacterSystem::setState(*p, QStringLiteral("jump"), 8, 70);
     emit soundRequested(QStringLiteral("player.jump"));
-    emit charactersChanged();
 }
 
 void GameWorldViewModel::playerRoll() {
@@ -336,7 +339,6 @@ void GameWorldViewModel::playerRoll() {
     p->velocity.setX((p->facingLeft ? -1 : 1) * tuning_.moveSpeed * 1.8);
     CharacterSystem::setState(*p, QStringLiteral("roll"), 2, 70, 220);
     emit soundRequested(QStringLiteral("player.roll"));
-    emit charactersChanged();
 }
 
 void GameWorldViewModel::playerAttack(const QString& direction) {
@@ -361,10 +363,9 @@ void GameWorldViewModel::playerAttack(const QString& direction) {
     CollisionSystem::updateCollisionBoxes(*p, tuning_);
 
     WorldEvents events;
-    applyCombatResult(CombatSystem::checkAttackHits(*p, characters_, resolvedAttackTokens_), events);
+    applyCombatResult(CombatSystem::checkAttackHits(*p, characters_, terrain_, resolvedAttackTokens_), events);
     events.sounds.push_back(isRollAttack ? QStringLiteral("player.attack.2") : QStringLiteral("player.attack.1"));
     emitEvents(events);
-    emit charactersChanged();
 }
 
 void GameWorldViewModel::playerTakeHit(int damage) {
@@ -374,10 +375,9 @@ void GameWorldViewModel::playerTakeHit(int damage) {
     }
 
     WorldEvents events;
-    applyCombatResult(CombatSystem::applyDamageToPlayer(*p, damage), events);
+    applyCombatResult(CombatSystem::applyDamageToPlayer(*p, damage, p->position), events);
     updateDeathState();
     emitEvents(events);
-    emit charactersChanged();
 }
 
 void GameWorldViewModel::playerCastSkill(const QString& skillId) {
@@ -391,7 +391,6 @@ void GameWorldViewModel::playerCastSkill(const QString& skillId) {
     p->animationKey = CharacterSystem::animationForFamilyState(p->animationFamily, p->state);
     emit soundRequested(QStringLiteral("player.attack.2"));
     Q_UNUSED(skillId);
-    emit charactersChanged();
 }
 
 void GameWorldViewModel::setAimUpPressed(bool pressed) {
@@ -415,7 +414,6 @@ void GameWorldViewModel::setChargePressed(bool pressed) {
         p->velocity.setX(0);
         p->rollAttack = false;
         CharacterSystem::setState(*p, QStringLiteral("charge"), 10, 80);
-        emit charactersChanged();
         return;
     }
 
@@ -431,7 +429,6 @@ void GameWorldViewModel::setChargePressed(bool pressed) {
         }
     }
     emit chargeProgressChanged();
-    emit charactersChanged();
 }
 
 void GameWorldViewModel::releaseAttack() {
@@ -467,10 +464,9 @@ void GameWorldViewModel::playerBurstAttack() {
     CollisionSystem::updateCollisionBoxes(*p, tuning_);
 
     WorldEvents events;
-    applyCombatResult(CombatSystem::checkAttackHits(*p, characters_, resolvedAttackTokens_), events);
+    applyCombatResult(CombatSystem::checkAttackHits(*p, characters_, terrain_, resolvedAttackTokens_), events);
     events.sounds.push_back(QStringLiteral("player.attack.2"));
     emitEvents(events);
-    emit charactersChanged();
 }
 
 void GameWorldViewModel::initializeWorld() {
@@ -723,7 +719,6 @@ void GameWorldViewModel::emitEvents(const WorldEvents& events) {
 }
 
 void GameWorldViewModel::notifyWorldDataChanged(bool sceneChanged) {
-    emit charactersChanged();
     emit debugBoxesChanged();
     if (sceneChanged) {
         emit mapLayersChanged();
@@ -775,51 +770,6 @@ QVariantMap GameWorldViewModel::boxToVariant(const CollisionBox& box) const {
     QVariantMap result = rectToVariant(box.rect);
     result["active"] = box.active;
     return result;
-}
-
-QVariantMap GameWorldViewModel::characterToVariant(const CharacterObject& character) const {
-    QVariantMap item;
-    item["id"] = character.id;
-    item["kind"] = character.kind;
-    item["hp"] = character.hp;
-    item["maxHp"] = character.maxHp;
-    item["lives"] = character.lives;
-    item["x"] = character.position.x();
-    item["y"] = character.position.y();
-    // 使用角色自身 charWidth/charHeight（而非 tuning 的固定值），
-    // 使得蜗牛（46×32）等体型不同的角色能正确渲染尺寸
-    item["width"] = character.charWidth;
-    item["height"] = character.charHeight;
-    item["position"] = pointToVariant(character.position);
-    item["velocity"] = pointToVariant(character.velocity);
-    item["facingLeft"] = character.facingLeft;
-    item["alive"] = character.alive;
-    item["state"] = character.state;
-    const QVariantMap sprite = animationPresentation(character.animationKey, character.frameIndex);
-    const QString fallbackVfxKey = character.kind == QStringLiteral("enemy")
-        ? QStringLiteral("mob.small_bee.vfx.attack_%1").arg(character.attackDirection)
-        : QStringLiteral("player.vfx.attack.%1").arg(character.attackDirection);
-    const QString vfxKey = character.attackVfxKey.isEmpty() ? fallbackVfxKey : character.attackVfxKey;
-    const QVariantMap attackVfx = animationPresentation(vfxKey, character.frameIndex);
-    item["spriteSource"] = sprite.value("source");
-    item["spriteIsSheet"] = sprite.value("isSheet");
-    item["spriteFrameCount"] = sprite.value("frameCount");
-    item["spriteFrameIndex"] = sprite.value("frameIndex");
-    item["spriteFrameWidth"] = sprite.value("frameWidth");
-    item["spriteFrameHeight"] = sprite.value("frameHeight");
-    item["frameIndex"] = character.frameIndex;
-    item["frameCount"] = character.frameCount;
-    item["attackDirection"] = character.attackDirection;
-    item["vfxSource"] = attackVfx.value("source");
-    item["vfxIsSheet"] = attackVfx.value("isSheet");
-    item["vfxFrameCount"] = attackVfx.value("frameCount");
-    item["vfxFrameIndex"] = attackVfx.value("frameIndex");
-    item["vfxFrameWidth"] = attackVfx.value("frameWidth");
-    item["vfxFrameHeight"] = attackVfx.value("frameHeight");
-    item["attackVfxSize"] = std::max(character.attackBox.rect.width(), character.attackBox.rect.height());
-    item["hurtbox"] = boxToVariant(character.hurtbox);
-    item["attackBox"] = boxToVariant(character.attackBox);
-    return item;
 }
 
 } // namespace skybound
