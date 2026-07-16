@@ -52,6 +52,33 @@ SceneBuildResult buildCustomMapScene(qreal viewportWidth, qreal viewportHeight, 
 
     return result;
 }
+
+SceneBuildResult buildNewForestScene(qreal viewportWidth, qreal viewportHeight, qreal mapX, qreal mapY, qreal mapWidth, qreal mapHeight) {
+    SceneBuildResult result;
+    result.mapLayers.push_back(MapLayer{QStringLiteral("new_forest_background"), QStringLiteral("scene.new_forest.background"), QRectF(mapX, mapY, mapWidth, mapHeight), 1.0});
+    result.playableLeft = 0;
+    result.playableRight = viewportWidth;
+
+    // 左地面 (0, 659, 171, 101)
+    result.terrain.push_back(TerrainPiece{QStringLiteral("nf_left_ground"), QStringLiteral("ground"), QRectF(0, 659, 171, 101), true});
+
+    // 左平台 (89, 571, 177, 42)
+    result.terrain.push_back(TerrainPiece{QStringLiteral("nf_left_platform"), QStringLiteral("platform"), QRectF(89, 571, 177, 42), true});
+
+    // 中平台 (293, 518, 352, 36)
+    result.terrain.push_back(TerrainPiece{QStringLiteral("nf_mid_platform"), QStringLiteral("platform"), QRectF(293, 518, 352, 36), true});
+
+    // 右中台 (734, 516, 259, 41)  — 左下角(734,557)到右上角(993,516)
+    result.terrain.push_back(TerrainPiece{QStringLiteral("nf_right_mid_platform"), QStringLiteral("platform"), QRectF(734, 516, 259, 41), true});
+
+    // 右上台 (1050, 560, 150, 38)
+    result.terrain.push_back(TerrainPiece{QStringLiteral("nf_right_upper_platform"), QStringLiteral("platform"), QRectF(1050, 560, 150, 38), true});
+
+    // 右地面 (1034, 654, 166, 106)
+    result.terrain.push_back(TerrainPiece{QStringLiteral("nf_right_ground"), QStringLiteral("ground"), QRectF(1034, 654, 166, 106), true});
+
+    return result;
+}
 } // namespace
 
 SceneBuildResult SceneBuilder::build(SceneId scene, qreal viewportWidth, qreal viewportHeight, qreal mapX, qreal mapY, qreal mapWidth, qreal mapHeight) {
@@ -60,6 +87,9 @@ SceneBuildResult SceneBuilder::build(SceneId scene, qreal viewportWidth, qreal v
     }
     if (scene == SceneId::CustomMap) {
         return buildCustomMapScene(viewportWidth, viewportHeight, mapX, mapY, mapWidth, mapHeight);
+    }
+    if (scene == SceneId::NewForestMap) {
+        return buildNewForestScene(viewportWidth, viewportHeight, mapX, mapY, mapWidth, mapHeight);
     }
     return buildBackground2Scene(viewportWidth, mapX, mapY, mapWidth, mapHeight);
 }
