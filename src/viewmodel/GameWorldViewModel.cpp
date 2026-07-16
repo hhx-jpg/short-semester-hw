@@ -248,6 +248,22 @@ void GameWorldViewModel::tick(int deltaMs) {
 
     updateDeathState();
 
+    // ──────────────────────────────────────────────
+    // 通关判定
+    //
+    // 玩家在森林3地图且到达最左上角平台（f3_plat7）时触发通关。
+    // 判定条件：
+    //   1. 当前场景为 ForestMap3
+    //   2. 玩家存活
+    //   3. 玩家 X 坐标在平台水平范围内
+    //   4. 玩家脚底 Y 坐标接近平台顶面（±8px 容差）
+    //
+    // 触发后切换到 "win" 状态，弹出通关界面。
+    // ──────────────────────────────────────────────
+    if (gameState_ == QStringLiteral("playing")) {
+        checkWinCondition();
+    }
+
     emitEvents(events);
     notifyWorldDataChanged(sceneChanged);
     emit worldChanged();
@@ -637,6 +653,55 @@ void GameWorldViewModel::updateDeathState() {
         emit soundRequested(QStringLiteral("enemy.run.stop"));
         emit soundRequested(QStringLiteral("bgm.factory.stop"));
         gameState_ = QStringLiteral("dead");
+        emit chargeProgressChanged();
+        emit gameStateChanged();
+    }
+}
+
+// ──────────────────────────────────────────────
+// 通关判定
+//
+// 检测玩家是否到达森林地图3最左上角的平台（f3_plat7）。
+// 该平台碰撞箱为 QRectF(1, 297, 157, 43)，顶面 y = 297。
+//
+// 判定通过后，将游戏状态切换为 "win"，
+// 停止所有音效并弹出通关界面。
+// ──────────────────────────────────────────────
+void GameWorldViewModel::checkWinCondition() {
+    if (currentScene_ != SceneId::ForestMap3) {
+        return;
+    }
+
+    const auto* p = player();
+    if (!p || !p->alive) {
+        return;
+    }
+
+    // f3_plat7 碰撞箱：QRectF(1, 297, 157, 43)
+    // 玩家脚底 y = position.y + charHeight
+    constexpr qreal kPlatLeft   = 1.0;
+    constexpr qreal kPlatRight  = 158.0;   // 1 + 157
+    constexpr qreal kPlatTop    = 297.0;
+    constexpr qreal kTolerance  = 8.0;     // Y 方向容差（像素）
+
+    const qreal playerLeft = p->position.x();
+    const qreal playerFeetY = p->position.y() + p->charHeight;
+
+    const bool inXRange = playerLeft >= kPlatLeft && playerLeft <= kPlatRight;
+    const bool onSurface = std::abs(playerFeetY - kPlatTop) <= kTolerance;
+
+    if (inXRange && onSurface) {
+        // ── 触发通关 ──
+        chargePressed_ = false;
+        chargeProgress_ = 0.0;
+        aimingUp_ = false;
+        aimingDown_ = false;
+        playerRunningSoundActive_ = false;
+        enemyRunningSoundActive_ = false;
+        emit soundRequested(QStringLiteral("player.run.stop"));
+        emit soundRequested(QStringLiteral("enemy.run.stop"));
+        emit soundRequested(QStringLiteral("bgm.factory.stop"));
+        gameState_ = QStringLiteral("win");
         emit chargeProgressChanged();
         emit gameStateChanged();
     }

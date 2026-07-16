@@ -95,6 +95,7 @@ private:
     void updateMovementSounds(WorldEvents& events);
     void applyCombatResult(const CombatResult& result, WorldEvents& events);
     void updateDeathState();
+    void checkWinCondition();
     void emitEvents(const WorldEvents& events);
     void notifyWorldDataChanged(bool sceneChanged = false);
     QVariantMap animationPresentation(const QString& key, int frameIndex) const;

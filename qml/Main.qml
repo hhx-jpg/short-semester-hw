@@ -603,6 +603,74 @@ ApplicationWindow {
             }
         }
 
+        // ── 通关界面 ──
+        Rectangle {
+            id: winScreen
+            anchors.fill: parent
+            visible: gameWorld.gameState === "win"
+            color: "#c9001a2e"
+            z: 1000
+
+            Rectangle {
+                width: 460
+                height: 320
+                anchors.centerIn: parent
+                radius: 18
+                color: "#e61c3347"
+                border.color: "#7fd7e8ff"
+                border.width: 2
+
+                Column {
+                    anchors.centerIn: parent
+                    width: 300
+                    spacing: 24
+
+                    Text {
+                        width: parent.width
+                        horizontalAlignment: Text.AlignHCenter
+                        text: "🎉 恭喜通关！"
+                        color: "#ffd700"
+                        font.pixelSize: 38
+                        font.bold: true
+                    }
+
+                    Text {
+                        width: parent.width
+                        horizontalAlignment: Text.AlignHCenter
+                        text: "你成功到达了森林的顶端！"
+                        color: "#b8d4e8"
+                        font.pixelSize: 18
+                        wrapMode: Text.WordWrap
+                    }
+
+                    Text {
+                        width: parent.width
+                        horizontalAlignment: Text.AlignHCenter
+                        text: "本次造成伤害：<b>" + gameWorld.damageCount + "</b>"
+                        color: "white"
+                        font.pixelSize: 20
+                        textFormat: Text.RichText
+                    }
+
+                    Button {
+                        id: winReturnButton
+                        width: parent.width
+                        height: 58
+                        text: "返回开始界面"
+                        font.pixelSize: 21
+                        font.bold: true
+                        onClicked: gameWorld.returnToStartMenu()
+                    }
+                }
+            }
+
+            onVisibleChanged: {
+                if (visible) {
+                    winReturnButton.forceActiveFocus()
+                }
+            }
+        }
+
         Component.onCompleted: {
             gameWorld.setViewport(width, height)
             forceActiveFocus()
