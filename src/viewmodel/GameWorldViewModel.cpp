@@ -236,14 +236,26 @@ void GameWorldViewModel::tick(int deltaMs) {
     applyCombatResult(WorldProcessor::resolveCombat(characters_, resolvedAttackTokens_), events);
     updateMovementSounds(events);
 
-    // 坠落出地图底部 → 直接死亡（对玩家和怪物都生效）
-    const qreal deathY = viewportHeight_ + 100;
+    // ──────────────────────────────────────────────
+    // 坠落出地图底部判定
+    //
+    // 如果角色（玩家或怪物）的顶部 Y 坐标超过了视口底部以下 100px，
+    // 判定为"坠落出地图"，直接置为死亡状态。
+    //
+    // 死亡后角色会被 WorldProcessor::advanceActors 跳过更新，
+    // 玩家死亡会触发 updateDeathState() 切换到死亡画面。
+    //
+    // viewportHeight_ + 100 作为阈值而非 viewportHeight_ 本身，
+    // 提供约 100px 的视觉缓冲，让角色完全掉出屏幕后再死亡，
+    // 避免在屏幕边缘闪死。
+    // ──────────────────────────────────────────────
+    const qreal deathY = viewportHeight_ + 100;  // 死亡阈值 = 视口底部 + 100px 缓冲
     for (auto it = characters_.begin(); it != characters_.end(); ++it) {
         auto& character = it.value();
         if (character.alive && character.position.y() > deathY) {
-            character.alive = false;
-            character.hp = 0;
-            character.velocity = QPointF(0, 0);
+            character.alive = false;       // 标记死亡（跳过后续更新）
+            character.hp = 0;              // 血量归零
+            character.velocity = QPointF(0, 0);  // 停止运动
         }
     }
 
