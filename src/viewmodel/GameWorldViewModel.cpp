@@ -235,6 +235,18 @@ void GameWorldViewModel::tick(int deltaMs) {
     applySceneSwitch(sceneSwitch);
     applyCombatResult(WorldProcessor::resolveCombat(characters_, resolvedAttackTokens_), events);
     updateMovementSounds(events);
+
+    // 坠落出地图底部 → 直接死亡（对玩家和怪物都生效）
+    const qreal deathY = viewportHeight_ + 100;
+    for (auto it = characters_.begin(); it != characters_.end(); ++it) {
+        auto& character = it.value();
+        if (character.alive && character.position.y() > deathY) {
+            character.alive = false;
+            character.hp = 0;
+            character.velocity = QPointF(0, 0);
+        }
+    }
+
     updateDeathState();
 
     emitEvents(events);
