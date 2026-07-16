@@ -176,6 +176,12 @@ add_executable(DomainSystemsTest
     src/domain/CollisionSystem.cpp
     src/domain/CombatSystem.h
     src/domain/CombatSystem.cpp
+    src/domain/NpcSystem.h
+    src/domain/NpcSystem.cpp
+    src/domain/CharacterFactory.h
+    src/domain/CharacterFactory.cpp
+    src/domain/SceneBuilder.h
+    src/domain/SceneBuilder.cpp
 )
 target_include_directories(DomainSystemsTest PRIVATE src)
 target_link_libraries(DomainSystemsTest PRIVATE Qt6::Core Qt6::Gui Qt6::Test)

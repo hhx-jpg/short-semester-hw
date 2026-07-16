@@ -1,6 +1,5 @@
 # Build outputs
-build/
-build-*/
+build*/
 cmake-build-*/
 CMakeFiles/
 CMakeCache.txt
@@ -56,4 +55,18 @@ __pycache__/
 # Local Claude/harness state
 .claude/
 
-# Keep source, config, resources, qml, and vendored headers tracked
+# Local build scripts and logs
+do_build.ps1
+out.txt
+err.txt
+
+# Garbled terminal artifact
+Trae CN*
+
+# Reports and documentation (project deliverables, not source code)
+总报告.md
+分报告_*.md
+代码框架说明.md
+测试报告.md
+MVVM_todo.md
+*.pdf

@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Qt 6
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: "6.8.*"
+          host: linux
+          target: desktop
+          arch: gcc_64
+          modules: qtmultimedia qtquickcontrols2
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake g++ libgl1-mesa-dev libxcb-*-dev
+
+      - name: Configure (CMake)
+        run: |
+          cmake -B build -DCMAKE_BUILD_TYPE=Debug
+
+      - name: Build
+        run: |
+          cmake --build build -j $(nproc)
+
+      - name: Run tests
+        working-directory: build
+        run: |
+          ctest --output-on-failure -R DomainSystemsTest
+
+  static-analysis:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install clang-tidy
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang-tidy cmake g++ qt6-base-dev
+
+      - name: Run clang-tidy
+        run: |
+          find src/ -name "*.cpp" -o -name "*.h" | xargs clang-tidy -p . 2>/dev/null || true

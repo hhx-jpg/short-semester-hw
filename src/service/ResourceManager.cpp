@@ -108,7 +108,7 @@ void ResourceManager::registerDefaults() {
     registerImage(QStringLiteral("mob.snail.walk.sheet"), QStringLiteral("qrc:/resources/Mob/Snail/walk-Sheet.png"));
     registerImage(QStringLiteral("mob.snail.hide.sheet"), QStringLiteral("qrc:/resources/Mob/Snail/Hide-Sheet.png"));
     registerImage(QStringLiteral("mob.snail.dead.sheet"), QStringLiteral("qrc:/resources/Mob/Snail/Dead-Sheet.png"));
-    registerSpriteSheet(QStringLiteral("mob.snail.walk"), QStringLiteral("mob.snail.walk.sheet"), 32, 32, 12);
+    registerSpriteSheet(QStringLiteral("mob.snail.walk"), QStringLiteral("mob.snail.walk.sheet"), 40, 32, 8);
     registerSpriteSheet(QStringLiteral("mob.snail.hide"), QStringLiteral("mob.snail.hide.sheet"), 32, 32, 12);
     registerSpriteSheet(QStringLiteral("mob.snail.dead"), QStringLiteral("mob.snail.dead.sheet"), 32, 32, 12);
 
