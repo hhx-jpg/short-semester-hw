@@ -43,4 +43,40 @@ CharacterObject CharacterFactory::createSmallBee(qreal x, qreal y, const WorldTu
     return bee;
 }
 
+// ──────────────────────────────────────────────
+// 创建蜗牛敌人
+//
+// 蜗牛是一种慢速地面怪物，行为特征：
+//   - 主动朝玩家靠近（检测范围 400px）
+//   - 身体触碰玩家时造成接触伤害（10 HP，每 500ms 冷却）
+//   - 对普通攻击免疫，被攻击时缩入壳中（hide 动画）
+//   - 唯一的消灭方式：玩家从上方踩踏（碰触壳顶 → 击杀 + 弹跳）
+//
+// 参数：
+//   x, y  — 初始位置（左上角坐标）
+//   tuning — 世界调参（传入以计算碰撞箱）
+// ──────────────────────────────────────────────
+CharacterObject CharacterFactory::createSnail(qreal x, qreal y, const WorldTuning& tuning) {
+    CharacterObject snail;
+    snail.id = QStringLiteral("snail_1");
+    snail.kind = QStringLiteral("enemy");
+    snail.animationFamily = QStringLiteral("snail");
+    snail.hp = 1;                       // HP 仅用于标识存活，实际伤害逻辑不走 HP
+    snail.maxHp = 1;
+    snail.lives = 1;
+    snail.aiControlled = true;
+    snail.attackDamage = 10;            // 接触伤害值
+    snail.attackCooldownMs = 500;       // 接触伤害冷却（ms），避免每帧扣血
+    snail.detectionRange = 400;         // 检测到玩家的距离
+    snail.attackRange = 0;              // 不主动攻击，靠接触伤害系统
+    snail.npcMoveSpeed = 1.0;           // 慢速移动
+    snail.charWidth = 46;               // 蜗牛实际渲染宽度（像素）
+    snail.charHeight = 32;              // 蜗牛实际渲染高度（像素）
+    snail.position = QPointF(x, y);
+    snail.facingLeft = true;
+    CharacterSystem::setState(snail, QStringLiteral("idle"), 12, 120);  // 12 帧行走循环
+    CollisionSystem::updateCollisionBoxes(snail, tuning);
+    return snail;
+}
+
 } // namespace skybound

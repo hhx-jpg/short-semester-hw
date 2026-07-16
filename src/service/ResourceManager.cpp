@@ -99,6 +99,19 @@ void ResourceManager::registerDefaults() {
     registerSpriteSheet(QStringLiteral("mob.small_bee.hit"), QStringLiteral("mob.small_bee.hit.sheet"), 64, 64, 4);
     registerSpriteSheet(QStringLiteral("mob.small_bee.vfx.attack_right"), QStringLiteral("mob.small_bee.vfx.attack.sheet"), 1024, 1024, 4);
     registerSpriteSheet(QStringLiteral("mob.small_bee.vfx.attack_left"), QStringLiteral("mob.small_bee.vfx.attack_left.sheet"), 1024, 1024, 4);
+
+    // ──────────────────────────────────────────────
+    // 蜗牛（Snail）素材注册
+    // 三个 sprite sheet：行走(walk)、缩壳(hide)、死亡(dead)
+    // 每张 384×32 像素，按 32×32 切分，各 12 帧
+    // ──────────────────────────────────────────────
+    registerImage(QStringLiteral("mob.snail.walk.sheet"), QStringLiteral("qrc:/resources/Mob/Snail/walk-Sheet.png"));
+    registerImage(QStringLiteral("mob.snail.hide.sheet"), QStringLiteral("qrc:/resources/Mob/Snail/Hide-Sheet.png"));
+    registerImage(QStringLiteral("mob.snail.dead.sheet"), QStringLiteral("qrc:/resources/Mob/Snail/Dead-Sheet.png"));
+    registerSpriteSheet(QStringLiteral("mob.snail.walk"), QStringLiteral("mob.snail.walk.sheet"), 32, 32, 12);
+    registerSpriteSheet(QStringLiteral("mob.snail.hide"), QStringLiteral("mob.snail.hide.sheet"), 32, 32, 12);
+    registerSpriteSheet(QStringLiteral("mob.snail.dead"), QStringLiteral("mob.snail.dead.sheet"), 32, 32, 12);
+
     const auto registerPlayerFrames = [this](const QString& animationKey, const QString& folder, int count) {
         for (int index = 1; index <= count; ++index) {
             const QString key = QStringLiteral("%1.%2").arg(animationKey).arg(index);

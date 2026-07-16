@@ -6,10 +6,25 @@ namespace skybound {
 
 void CollisionSystem::updateCollisionBoxes(CharacterObject& character, const WorldTuning& tuning) {
     const bool isEnemy = character.kind == QStringLiteral("enemy");
-    const qreal hurtOffsetX = isEnemy ? tuning.enemyHurtboxOffsetX : tuning.playerHurtboxOffsetX;
-    const qreal hurtOffsetY = isEnemy ? tuning.enemyHurtboxOffsetY : tuning.playerHurtboxOffsetY;
-    const qreal hurtWidth = isEnemy ? tuning.enemyHurtboxWidth : tuning.playerHurtboxWidth;
-    const qreal hurtHeight = isEnemy ? tuning.enemyHurtboxHeight : tuning.playerHurtboxHeight;
+    qreal hurtOffsetX, hurtOffsetY, hurtWidth, hurtHeight;
+
+    // ──────────────────────────────────────────────
+    // 蜗牛 hurtbox 特殊处理
+    // 蜗牛体型只有 46×32（vs 玩家/蜜蜂的 90×90），
+    // 使用默认的 enemy hurtbox（44×72）会导致碰撞箱远大于实际身体。
+    // 这里直接使用 charWidth/charHeight 来计算贴合身体的 hurtbox。
+    // ──────────────────────────────────────────────
+    if (character.animationFamily == QStringLiteral("snail")) {
+        hurtOffsetX = 2;                     // 左右各留 2px 边距
+        hurtOffsetY = 0;                     // 顶部对齐
+        hurtWidth = character.charWidth - 4; // 宽度 = 46 - 4 = 42
+        hurtHeight = character.charHeight;   // 高度 = 32
+    } else {
+        hurtOffsetX = isEnemy ? tuning.enemyHurtboxOffsetX : tuning.playerHurtboxOffsetX;
+        hurtOffsetY = isEnemy ? tuning.enemyHurtboxOffsetY : tuning.playerHurtboxOffsetY;
+        hurtWidth = isEnemy ? tuning.enemyHurtboxWidth : tuning.playerHurtboxWidth;
+        hurtHeight = isEnemy ? tuning.enemyHurtboxHeight : tuning.playerHurtboxHeight;
+    }
 
     character.hurtbox = CollisionBox{QRectF(character.position.x() + hurtOffsetX, character.position.y() + hurtOffsetY, hurtWidth, hurtHeight), character.alive};
 
@@ -90,10 +105,19 @@ void CollisionSystem::resolveTerrainCollision(CharacterObject& character, const 
             continue;
         }
 
-        const qreal hOffX = character.kind == QStringLiteral("enemy") ? tuning.enemyHurtboxOffsetX : tuning.playerHurtboxOffsetX;
-        const qreal hOffY = character.kind == QStringLiteral("enemy") ? tuning.enemyHurtboxOffsetY : tuning.playerHurtboxOffsetY;
-        const qreal hW = character.kind == QStringLiteral("enemy") ? tuning.enemyHurtboxWidth : tuning.playerHurtboxWidth;
-        const qreal hH = character.kind == QStringLiteral("enemy") ? tuning.enemyHurtboxHeight : tuning.playerHurtboxHeight;
+        qreal hOffX, hOffY, hW, hH;
+        // 蜗牛体型小，地形碰撞也使用自身体积，防止与地面/平台错误对齐
+        if (character.animationFamily == QStringLiteral("snail")) {
+            hOffX = 2;
+            hOffY = 0;
+            hW = character.charWidth - 4;
+            hH = character.charHeight;
+        } else {
+            hOffX = character.kind == QStringLiteral("enemy") ? tuning.enemyHurtboxOffsetX : tuning.playerHurtboxOffsetX;
+            hOffY = character.kind == QStringLiteral("enemy") ? tuning.enemyHurtboxOffsetY : tuning.playerHurtboxOffsetY;
+            hW = character.kind == QStringLiteral("enemy") ? tuning.enemyHurtboxWidth : tuning.playerHurtboxWidth;
+            hH = character.kind == QStringLiteral("enemy") ? tuning.enemyHurtboxHeight : tuning.playerHurtboxHeight;
+        }
         const QRectF hr(character.position.x() + hOffX, character.position.y() + hOffY, hW, hH);
         const qreal previousBottom = hr.bottom() - character.velocity.y();
         if (previousBottom <= piece.rect.top() && hr.bottom() >= piece.rect.top() && hr.right() > piece.rect.left() && hr.left() < piece.rect.right()) {

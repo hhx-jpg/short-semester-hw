@@ -71,6 +71,9 @@ qt_add_resources(SkyboundTactics sprite_resources
         "resources/Mob/Small Bee/Hit/Hit-Sheet.png"
         "resources/Mob/Small Bee/Hit/hit.png"
         "resources/Mob/Small Bee/Hit/hit_left.png"
+        "resources/Mob/Snail/walk-Sheet.png"
+        "resources/Mob/Snail/Hide-Sheet.png"
+        "resources/Mob/Snail/Dead-Sheet.png"
         resources/player/idle/1.png
         resources/player/idle/2.png
         resources/player/idle/3.png

@@ -8,6 +8,7 @@ class CharacterFactory {
 public:
     static CharacterObject createPlayer(qreal x, qreal y, const WorldTuning& tuning);
     static CharacterObject createSmallBee(qreal x, qreal y, const WorldTuning& tuning);
+    static CharacterObject createSnail(qreal x, qreal y, const WorldTuning& tuning);
 };
 
 } // namespace skybound

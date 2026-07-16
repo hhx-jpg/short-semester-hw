@@ -15,6 +15,22 @@ QString CharacterSystem::animationForFamilyState(const QString& family, const QS
         return QStringLiteral("mob.small_bee.fly");
     }
 
+    // ──────────────────────────────────────────────
+    // 蜗牛（snail）动画族：
+    //   - idle / 默认状态 → 行走动画（walk）
+    //   - hit / hide      → 缩壳动画（hide）：被攻击或主动缩入壳中
+    //   - dead            → 死亡动画（dead）
+    // ──────────────────────────────────────────────
+    if (family == QStringLiteral("snail")) {
+        if (state == QStringLiteral("hit") || state == QStringLiteral("hide")) {
+            return QStringLiteral("mob.snail.hide");
+        }
+        if (state == QStringLiteral("dead")) {
+            return QStringLiteral("mob.snail.dead");
+        }
+        return QStringLiteral("mob.snail.walk");
+    }
+
     if (family == QStringLiteral("player")) {
         if (state == QStringLiteral("jump")) {
             return QStringLiteral("player.jump");

@@ -469,10 +469,13 @@ void GameWorldViewModel::initializeWorld() {
     const qreal playerX = (playableLeft_ + playableRight_ - tuning_.actorWidth) / 2.0;
     const qreal beeX = findSpawnXOnTerrain(terrain_, tuning_.actorWidth, playableRight_);
 
+    // 在地图上生成三种角色：玩家、蜜蜂（测试用）、蜗牛（测试用）
     const auto playerCharacter = CharacterFactory::createPlayer(playerX, spawnY, tuning_);
     const auto bee = CharacterFactory::createSmallBee(beeX, spawnY, tuning_);
+    const auto snail = CharacterFactory::createSnail(beeX - 200, spawnY, tuning_);  // 蜗牛出生在蜜蜂左侧 200px
     characters_.insert(playerCharacter.id, playerCharacter);
     characters_.insert(bee.id, bee);
+    characters_.insert(snail.id, snail);
 }
 
 void GameWorldViewModel::updateMapGeometry() {
@@ -668,8 +671,10 @@ QVariantMap GameWorldViewModel::characterToVariant(const CharacterObject& charac
     item["lives"] = character.lives;
     item["x"] = character.position.x();
     item["y"] = character.position.y();
-    item["width"] = tuning_.actorWidth;
-    item["height"] = tuning_.actorHeight;
+    // 使用角色自身 charWidth/charHeight（而非 tuning 的固定值），
+    // 使得蜗牛（46×32）等体型不同的角色能正确渲染尺寸
+    item["width"] = character.charWidth;
+    item["height"] = character.charHeight;
     item["position"] = pointToVariant(character.position);
     item["velocity"] = pointToVariant(character.velocity);
     item["facingLeft"] = character.facingLeft;

@@ -58,6 +58,19 @@ CombatResult WorldProcessor::resolveCombat(
         combined.sounds.append(result.sounds);
         combined.playerStatsChanged = combined.playerStatsChanged || result.playerStatsChanged;
     }
+
+    // ── 蜗牛接触伤害：蜗牛 body 触碰玩家 → 扣血 ──
+    const CombatResult contactResult = CombatSystem::checkContactDamage(characters);
+    combined.damageCountDelta += contactResult.damageCountDelta;
+    combined.sounds.append(contactResult.sounds);
+    combined.playerStatsChanged = combined.playerStatsChanged || contactResult.playerStatsChanged;
+
+    // ── 踩踏击杀：玩家下落时踩到蜗牛壳顶 → 击杀 + 弹跳 ──
+    const CombatResult stompResult = CombatSystem::checkStompKill(characters);
+    combined.damageCountDelta += stompResult.damageCountDelta;
+    combined.sounds.append(stompResult.sounds);
+    combined.playerStatsChanged = combined.playerStatsChanged || stompResult.playerStatsChanged;
+
     return combined;
 }
 

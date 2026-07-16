@@ -57,6 +57,8 @@ struct CharacterObject {
     qreal detectionRange = 600;
     qreal attackRange = 95;
     qreal npcMoveSpeed = 2.2;
+    qreal charWidth = 90;      // 角色渲染宽度（像素），默认 90，蜗牛等小体型可单独设置
+    qreal charHeight = 90;     // 角色渲染高度（像素），默认 90
     CollisionBox hurtbox;
     CollisionBox attackBox;
 };
