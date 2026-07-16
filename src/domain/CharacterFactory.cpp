@@ -79,4 +79,23 @@ CharacterObject CharacterFactory::createSnail(qreal x, qreal y, const WorldTunin
     return snail;
 }
 
+// ──────────────────────────────────────────────
+// 按类型字符串创建怪物（工厂分发入口）
+//
+// 遍历已知怪物类型，匹配后调用对应的 createXxx 方法。
+// 未知类型返回空对象（id 为空），调用方可用以下方式检查：
+//   CharacterObject mob = CharacterFactory::createByType(...);
+//   if (!mob.id.isEmpty()) { characters_.insert(mob.id, mob); }
+// ──────────────────────────────────────────────
+CharacterObject CharacterFactory::createByType(const QString& type, qreal x, qreal y, const WorldTuning& tuning) {
+    if (type == QStringLiteral("small_bee")) {
+        return createSmallBee(x, y, tuning);
+    }
+    if (type == QStringLiteral("snail")) {
+        return createSnail(x, y, tuning);
+    }
+    // 未知类型：返回默认构造的空对象
+    return CharacterObject{};
+}
+
 } // namespace skybound

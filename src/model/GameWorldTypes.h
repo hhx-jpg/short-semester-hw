@@ -128,9 +128,25 @@ struct SceneSwitchRequest {
     EntrySide entrySide = EntrySide::Left;
 };
 
+// ──────────────────────────────────────────────
+// 怪物出生点配置
+//
+// 每个 MobSpawn 定义一张地图上一个怪物的：
+//   - mobType : 怪物类型字符串，传给 CharacterFactory::createByType()
+//              目前支持："small_bee"（小蜜蜂）、"snail"（蜗牛）
+//   - x       : 出生位置 X 坐标（相对于场景左边界）
+//   - y       : 出生位置 Y 坐标（0 表示自动放置在最宽地形块上）
+// ──────────────────────────────────────────────
+struct MobSpawn {
+    QString mobType;   // 怪物类型："small_bee" / "snail"
+    qreal x = 0;       // 出生 X 坐标
+    qreal y = 0;       // 出生 Y 坐标（0 = 自动放置在地形上）
+};
+
 struct SceneBuildResult {
     QList<MapLayer> mapLayers;
     QList<TerrainPiece> terrain;
+    QList<MobSpawn> mobSpawns;   // 本场景的怪物出生点列表
     qreal playableLeft = 0;
     qreal playableRight = 0;
 };

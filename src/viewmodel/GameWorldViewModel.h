@@ -89,6 +89,7 @@ private:
     void initializeWorld();
     void updateMapGeometry();
     void switchToScene(SceneId scene, EntrySide entrySide);
+    void spawnMobs(const QList<MobSpawn>& spawns);
     void applySceneSwitch(const SceneSwitchRequest& sceneSwitch);
     void updateCharge(int deltaMs, WorldEvents& events);
     void updateMovementSounds(WorldEvents& events);
@@ -120,6 +121,7 @@ private:
     QHash<QString, CharacterObject> characters_;
     QList<TerrainPiece> terrain_;
     QList<MapLayer> mapLayers_;
+    QList<MobSpawn> mobSpawns_;       // 当前场景的怪物出生点配置
     QSet<QString> resolvedAttackTokens_;
     int damageCount_ = 0;
     qreal chargeProgress_ = 0.0;

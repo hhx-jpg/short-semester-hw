@@ -15,22 +15,9 @@
 namespace skybound {
 
 namespace {
+
 constexpr int kFrameMs = 16;
 
-// 在地形上找一个安全的出生 X 坐标：选取最宽的地形块，在其靠右位置生成
-qreal findSpawnXOnTerrain(const QList<TerrainPiece>& terrain, qreal actorWidth, qreal playableRight) {
-    qreal bestX = 0;
-    qreal bestWidth = 0;
-    for (const auto& piece : terrain) {
-        if (!piece.solid) continue;
-        const qreal w = piece.rect.width();
-        if (w > bestWidth) {
-            bestWidth = w;
-            bestX = piece.rect.left() + w * 0.72;
-        }
-    }
-    return std::clamp(bestX - actorWidth / 2, 0.0, playableRight - actorWidth);
-}
 } // namespace
 
 GameWorldViewModel::GameWorldViewModel(const ResourceManager& resources, QObject* parent)
@@ -474,20 +461,20 @@ void GameWorldViewModel::initializeWorld() {
     characters_.clear();
     terrain_.clear();
     mapLayers_.clear();
+    mobSpawns_.clear();
     currentScene_ = SceneId::OriginalFactory;
     updateMapGeometry();
 
+    // 在所有地形块中，选取第一个地形块的顶部作为出生 Y 坐标
     const qreal spawnY = terrain_.isEmpty() ? viewportHeight_ - tuning_.actorHeight : terrain_.front().rect.top() - tuning_.actorHeight;
     const qreal playerX = (playableLeft_ + playableRight_ - tuning_.actorWidth) / 2.0;
-    const qreal beeX = findSpawnXOnTerrain(terrain_, tuning_.actorWidth, playableRight_);
 
-    // 在地图上生成三种角色：玩家、蜜蜂（测试用）、蜗牛（测试用）
+    // 创建玩家角色
     const auto playerCharacter = CharacterFactory::createPlayer(playerX, spawnY, tuning_);
-    const auto bee = CharacterFactory::createSmallBee(beeX, spawnY, tuning_);
-    const auto snail = CharacterFactory::createSnail(beeX - 200, spawnY, tuning_);  // 蜗牛出生在蜜蜂左侧 200px
     characters_.insert(playerCharacter.id, playerCharacter);
-    characters_.insert(bee.id, bee);
-    characters_.insert(snail.id, snail);
+
+    // 从当前场景的 mobSpawns 配置批量生成怪物
+    spawnMobs(mobSpawns_);
 }
 
 void GameWorldViewModel::updateMapGeometry() {
@@ -500,6 +487,7 @@ void GameWorldViewModel::updateMapGeometry() {
     const auto scene = SceneBuilder::build(currentScene_, viewportWidth_, viewportHeight_, mapX_, mapY_, mapWidth_, mapHeight_);
     mapLayers_ = scene.mapLayers;
     terrain_ = scene.terrain;
+    mobSpawns_ = scene.mobSpawns;  // 保存本场景的怪物出生点配置，用于后续生成怪物
     playableLeft_ = scene.playableLeft;
     playableRight_ = scene.playableRight;
 }
@@ -531,11 +519,61 @@ void GameWorldViewModel::switchToScene(SceneId scene, EntrySide entrySide) {
     CollisionSystem::updateCollisionBoxes(playerSnapshot, tuning_);
     characters_.insert(playerSnapshot.id, playerSnapshot);
 
-    const qreal beeX = findSpawnXOnTerrain(terrain_, tuning_.actorWidth, playableRight_);
-    const auto bee = CharacterFactory::createSmallBee(beeX, spawnY, tuning_);
-    characters_.insert(bee.id, bee);
+    // 从新场景的 mobSpawns 配置批量生成怪物
+    spawnMobs(mobSpawns_);
 
     emit viewportChanged();
+}
+
+// ──────────────────────────────────────────────
+// 按配置批量生成怪物
+//
+// 遍历 mobSpawns 列表，对每条配置：
+//   1. 调用 CharacterFactory::createByType() 按类型创建怪物对象
+//   2. 如果创建成功（id 非空），插入到 characters_ 哈希表中
+//   3. 自动处理 ID 冲突：同类型多个怪物时追加数字后缀
+//      （例如第二只蜗牛 ID 变为 "snail_2"）
+//
+// 自动放置逻辑：
+//   如果 spawn.y == 0，则将怪物放置在最宽地形块的顶部，
+//   确保怪物不会生成在半空中或地下。
+//
+// 参数：
+//   spawns — 怪物出生点配置列表，来自 SceneBuildResult.mobSpawns
+// ──────────────────────────────────────────────
+void GameWorldViewModel::spawnMobs(const QList<MobSpawn>& spawns) {
+    // 找最宽的地形块，用于自动计算 Y 坐标
+    qreal bestTerrainTop = viewportHeight_ - tuning_.actorHeight;
+    if (!terrain_.isEmpty()) {
+        qreal bestWidth = 0;
+        for (const auto& piece : terrain_) {
+            if (piece.solid && piece.rect.width() > bestWidth) {
+                bestWidth = piece.rect.width();
+                bestTerrainTop = piece.rect.top();
+            }
+        }
+    }
+
+    // 用于生成唯一 ID 的计数器（按怪物类型分别计数）
+    QHash<QString, int> typeCounters;
+
+    for (const auto& spawn : spawns) {
+        qreal x = spawn.x;
+        // y == 0 时自动放置在最宽地形块的顶部
+        qreal y = (spawn.y == 0) ? bestTerrainTop - tuning_.actorHeight : spawn.y;
+
+        auto mob = CharacterFactory::createByType(spawn.mobType, x, y, tuning_);
+        // 创建成功则插入到角色列表；未知类型返回空对象，静默跳过
+        if (!mob.id.isEmpty()) {
+            // ── ID 去重：同类型怪物共用同一个 base ID（如 "snail_1"），
+            //    第二只起追加计数后缀，防止哈希表覆盖
+            const int counter = ++typeCounters[spawn.mobType];
+            if (counter > 1) {
+                mob.id = spawn.mobType + QStringLiteral("_") + QString::number(counter);
+            }
+            characters_.insert(mob.id, mob);
+        }
+    }
 }
 
 void GameWorldViewModel::applySceneSwitch(const SceneSwitchRequest& sceneSwitch) {
