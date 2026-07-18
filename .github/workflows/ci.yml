@@ -11,16 +11,17 @@ jobs:
     runs-on: ubuntu-24.04
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install Qt 6
         uses: jurplel/install-qt-action@v4
         with:
-          version: "6.8.*"
+          version: "6.8.3"
           host: linux
           target: desktop
-          arch: gcc_64
-          modules: qtmultimedia qtquickcontrols2
+          arch: linux_gcc_64
+          modules: qtmultimedia
+          cache: true
 
       - name: Install build dependencies
         run: |
@@ -28,22 +29,54 @@ jobs:
           sudo apt-get install -y cmake g++ libgl1-mesa-dev libxcb-*-dev
 
       - name: Configure (CMake)
-        run: |
-          cmake -B build -DCMAKE_BUILD_TYPE=Debug
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
 
       - name: Build
-        run: |
-          cmake --build build -j $(nproc)
+        run: cmake --build build --parallel
+
+      - name: List tests
+        run: ctest --test-dir build -N
 
       - name: Run tests
-        working-directory: build
+        shell: bash
         run: |
-          ctest --output-on-failure -R DomainSystemsTest
+          mkdir -p test-results
+          set -o pipefail
+          ctest --test-dir build \
+            --output-on-failure \
+            --no-tests=error \
+            --output-junit test-results/ctest.xml \
+            | tee test-results/ctest-output.txt
+
+      - name: Add test summary
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "## CTest result"
+            echo '```text'
+            if [ -f test-results/ctest-output.txt ]; then
+              printf '%s\n' "$(<test-results/ctest-output.txt)"
+            else
+              echo "CTest did not produce output. Check the earlier build steps."
+            fi
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ctest-results
+          path: |
+            test-results/
+            build/Testing/Temporary/*.log
+          if-no-files-found: warn
 
   static-analysis:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install clang-tidy
         run: |
