@@ -48,8 +48,11 @@ target_link_libraries(SkyboundTactics PRIVATE
     Qt6::Qml
     Qt6::Quick
     Qt6::QuickControls2
-    Qt6::EntryPointPrivate
 )
+
+if(WIN32)
+    target_link_libraries(SkyboundTactics PRIVATE Qt6::EntryPointPrivate)
+endif()
 
 set_source_files_properties(qml/Main.qml PROPERTIES QT_RESOURCE_ALIAS Main.qml)
 
