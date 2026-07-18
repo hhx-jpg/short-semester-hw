@@ -19,7 +19,7 @@ jobs:
           version: "6.8.*"
           host: linux
           target: desktop
-          arch: gcc_64
+          arch: linux_gcc_64
           modules: qtmultimedia qtquickcontrols2
 
       - name: Install build dependencies
