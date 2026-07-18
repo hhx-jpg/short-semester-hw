@@ -167,35 +167,70 @@ qt_add_resources(SkyboundTactics sprite_resources
 
 enable_testing()
 
-add_executable(DomainSystemsTest
-    tests/DomainSystemsTest.cpp
+# ── 辅助函数：为每个领域系统创建独立的测试目标 ──
+function(add_domain_test TEST_NAME TEST_FILE)
+    add_executable(${TEST_NAME} ${TEST_FILE} ${ARGN})
+    target_include_directories(${TEST_NAME} PRIVATE src)
+    target_link_libraries(${TEST_NAME} PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
+    if(WIN32)
+        add_custom_command(TARGET ${TEST_NAME} POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                $<TARGET_FILE:Qt6::Core>
+                $<TARGET_FILE:Qt6::Gui>
+                $<TARGET_FILE:Qt6::Test>
+                $<TARGET_FILE_DIR:${TEST_NAME}>
+            COMMAND_EXPAND_LISTS
+        )
+    endif()
+    add_test(NAME ${TEST_NAME} COMMAND ${TEST_NAME})
+endfunction()
+
+# 每个测试目标只链接自身所需的源文件，保持最小依赖
+add_domain_test(TestCollisionSystem tests/TestCollisionSystem.cpp
     src/model/GameWorldTypes.h
+    src/domain/CollisionSystem.h
+    src/domain/CollisionSystem.cpp
+)
+
+add_domain_test(TestCombatSystem tests/TestCombatSystem.cpp
+    src/model/GameWorldTypes.h
+    src/domain/CombatSystem.h
+    src/domain/CombatSystem.cpp
+    src/domain/CollisionSystem.h
+    src/domain/CollisionSystem.cpp
+    src/domain/CharacterSystem.h
+    src/domain/CharacterSystem.cpp
+)
+
+add_domain_test(TestCharacterSystem tests/TestCharacterSystem.cpp
+    src/model/GameWorldTypes.h
+    src/domain/CharacterSystem.h
+    src/domain/CharacterSystem.cpp
+)
+
+add_domain_test(TestNpcSystem tests/TestNpcSystem.cpp
+    src/model/GameWorldTypes.h
+    src/domain/NpcSystem.h
+    src/domain/NpcSystem.cpp
+    src/domain/CharacterSystem.h
+    src/domain/CharacterSystem.cpp
+)
+
+add_domain_test(TestCharacterFactory tests/TestCharacterFactory.cpp
+    src/model/GameWorldTypes.h
+    src/domain/CharacterFactory.h
+    src/domain/CharacterFactory.cpp
     src/domain/CharacterSystem.h
     src/domain/CharacterSystem.cpp
     src/domain/CollisionSystem.h
     src/domain/CollisionSystem.cpp
-    src/domain/CombatSystem.h
-    src/domain/CombatSystem.cpp
-    src/domain/NpcSystem.h
-    src/domain/NpcSystem.cpp
-    src/domain/CharacterFactory.h
-    src/domain/CharacterFactory.cpp
+)
+
+add_domain_test(TestSceneBuilder tests/TestSceneBuilder.cpp
+    src/model/GameWorldTypes.h
     src/domain/SceneBuilder.h
     src/domain/SceneBuilder.cpp
 )
-target_include_directories(DomainSystemsTest PRIVATE src)
-target_link_libraries(DomainSystemsTest PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
-if(WIN32)
-    add_custom_command(TARGET DomainSystemsTest POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            $<TARGET_FILE:Qt6::Core>
-            $<TARGET_FILE:Qt6::Gui>
-            $<TARGET_FILE:Qt6::Test>
-            $<TARGET_FILE_DIR:DomainSystemsTest>
-        COMMAND_EXPAND_LISTS
-    )
-endif()
-add_test(NAME DomainSystemsTest COMMAND DomainSystemsTest)
 
 if(WIN32)
     add_custom_command(TARGET SkyboundTactics POST_BUILD
