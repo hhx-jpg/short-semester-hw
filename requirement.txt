@@ -1,0 +1,101 @@
+SkyboundTactics 复现环境要求
+============================
+
+一、基础环境
+------------
+- Git
+- CMake 3.24 或更高版本
+- 支持 C++20 的编译器
+- Qt 6.8 或更高版本（推荐使用项目和 CI 已验证的 Qt 6.8.3）
+
+二、Qt 必需组件
+--------------
+安装 Qt 时必须包含以下组件：
+- Core
+- Gui
+- Multimedia
+- Qml
+- Quick
+- QuickControls2
+- Test
+
+使用 Qt 在线安装器时，请额外选择 Qt Multimedia。
+Qt Quick Controls 2 属于 Qt Declarative，不应作为 aqtinstall 的独立模块安装。
+
+三、Windows 推荐环境
+------------------
+本项目主要开发和运行环境：
+- Windows 11
+- Qt 6.8.3 MinGW 64-bit，或 Qt 6.8.3 MSVC 2022 64-bit
+- CMake 3.24+
+- Ninja（MinGW 构建时推荐）或 Visual Studio 2022
+
+注意：Qt 工具链必须与编译器匹配，不能混用 MinGW 版 Qt 和 MSVC 编译器。
+
+项目约定的构建目录为：
+D:\SkyboundTactics-qt-build
+
+配置：
+cmake -S . -B D:\SkyboundTactics-qt-build
+
+构建应用：
+cmake --build D:\SkyboundTactics-qt-build --target SkyboundTactics --parallel
+
+运行测试：
+ctest --test-dir D:\SkyboundTactics-qt-build --output-on-failure --no-tests=error
+
+运行应用：
+D:\SkyboundTactics-qt-build\SkyboundTactics.exe
+
+如果 CMake 无法自动找到 Qt，可显式指定 Qt 安装目录，例如：
+cmake -S . -B D:\SkyboundTactics-qt-build -DCMAKE_PREFIX_PATH=D:\Qt\6.8.3\mingw_64
+
+四、Linux / GitHub Actions 环境
+----------------------------
+当前 GitHub Actions 使用：
+- Ubuntu 24.04
+- GCC（linux_gcc_64）
+- Qt 6.8.3
+- qtmultimedia
+
+Ubuntu 系统构建依赖：
+- cmake
+- g++
+- libgl1-mesa-dev
+- libxcb-*-dev
+
+安装示例：
+sudo apt-get update
+sudo apt-get install -y cmake g++ libgl1-mesa-dev libxcb-*-dev
+
+通过 aqtinstall 安装与 CI 相同的 Qt：
+python3 -m pip install aqtinstall
+python3 -m aqt install-qt linux desktop 6.8.3 linux_gcc_64 --outputdir "$HOME/Qt" --modules qtmultimedia
+
+配置、构建和测试：
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+cmake --build build --parallel
+ctest --test-dir build --output-on-failure --no-tests=error
+
+五、测试说明
+------------
+项目使用 Qt Test 和 CTest。当前包含 6 个独立测试程序：
+- TestCollisionSystem
+- TestCombatSystem
+- TestCharacterSystem
+- TestNpcSystem
+- TestCharacterFactory
+- TestSceneBuilder
+
+列出测试：
+ctest --test-dir <构建目录> -N
+
+生成 JUnit 测试结果：
+ctest --test-dir <构建目录> --output-on-failure --no-tests=error --output-junit ctest.xml
+
+六、其他说明
+------------
+- Python 不是应用本身的运行依赖；仅在使用 aqtinstall 自动下载 Qt 时需要。
+- Vulkan SDK 不是当前构建的必需依赖；配置时出现 WrapVulkanHeaders 未找到的提示通常不影响构建。
+- 完整运行应用需要图形桌面和音频环境；单元测试可在无图形界面的 CI 环境中执行。
+- 所有资源文件由 CMake/Qt Resource System 嵌入，克隆仓库时应保留完整的 resources 目录。
